@@ -4,6 +4,11 @@ This repository contains the standalone Terminal frontend and controller. The
 `sealos-tty-bridge` service remains a separate deployment and is not copied
 into this repository.
 
+Product intent is documented in [`PRODUCT.md`](../PRODUCT.md), the current UI
+system in [`DESIGN.md`](../DESIGN.md), and route ownership in [`ia.md`](ia.md).
+Use [`references.md`](references.md) to trace external contracts and package
+ownership.
+
 ## Runtime Paths
 
 ```text

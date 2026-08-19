@@ -24,6 +24,16 @@ make controller-image PLATFORM=linux/amd64
 
 更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。GitHub Actions 默认发布 amd64；只有手动工作流显式打开 `publish_arm64` 时才增加 arm64。
 
+## 项目文档
+
+- [`PRODUCT.md`](PRODUCT.md)：产品目标、用户、边界和设计原则。
+- [`DESIGN.md`](DESIGN.md)：当前终端界面的视觉系统和 UI 约束。
+- [`ROADMAP.md`](ROADMAP.md)：已交付基线和后续工作。
+- [`docs/architecture.md`](docs/architecture.md)：运行时链路和仓库边界。
+- [`docs/ia.md`](docs/ia.md)：路由、组件归属和状态模型。
+- [`docs/references.md`](docs/references.md)：外部服务、npm 包和代码事实来源。
+- [`docs/runbook.md`](docs/runbook.md)：部署、发布和运维操作。
+
 ## `/exec` 配置
 
 部署 frontend 时设置：

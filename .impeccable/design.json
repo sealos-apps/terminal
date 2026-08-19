@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-19T00:00:00+08:00",
+  "title": "Design System: Sealos Terminal",
+  "extensions": {
+    "colorMeta": {
+      "terminal-surface": {
+        "role": "primary",
+        "displayName": "Terminal Surface",
+        "canonical": "#2b2b2b",
+        "tonalRamp": ["#111111", "#1a1a1a", "#232323", "#2b2b2b", "#3b3b3b", "#555555", "#bfbfbf", "#ffffff"]
+      },
+      "terminal-surface-deep": {
+        "role": "neutral",
+        "displayName": "Sidebar Surface",
+        "canonical": "#1a1a1a",
+        "tonalRamp": ["#0b0b0b", "#111111", "#1a1a1a", "#232323", "#2b2b2b", "#555555", "#bfbfbf", "#ffffff"]
+      },
+      "terminal-surface-hover": {
+        "role": "neutral",
+        "displayName": "Hover Surface",
+        "canonical": "#232323",
+        "tonalRamp": ["#111111", "#1a1a1a", "#232323", "#2b2b2b", "#3b3b3b", "#555555", "#bfbfbf", "#ffffff"]
+      },
+      "terminal-divider": {
+        "role": "neutral",
+        "displayName": "Divider",
+        "canonical": "#232528",
+        "tonalRamp": ["#111111", "#181a1c", "#232528", "#2b2b2b", "#3b3d40", "#55585b", "#bfbfbf", "#ffffff"]
+      },
+      "terminal-text": {
+        "role": "neutral",
+        "displayName": "Terminal Text",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#555555", "#777777", "#999999", "#bfbfbf", "#cccccc", "#e0e0e0", "#f2f2f2", "#ffffff"]
+      }
+    },
+    "typographyMeta": {
+      "terminal": {
+        "displayName": "Terminal Mono",
+        "purpose": "Command output, user input, and target identity where alignment matters."
+      },
+      "label": {
+        "displayName": "Operational Label",
+        "purpose": "Compact tab, target, and connection-state copy."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "fit-retry",
+        "value": "requestAnimationFrame for up to 2s during initial layout settling",
+        "purpose": "Keep xterm dimensions accurate without animating the terminal surface."
+      }
+    ],
+    "breakpoints": [
+      {"name": "mobile-sidebar", "value": "768px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Terminal Canvas",
+      "kind": "custom",
+      "refersTo": "terminal-canvas",
+      "description": "Full-screen xterm surface for direct or application sessions.",
+      "html": "<div class=\"ds-terminal-canvas\" aria-label=\"Terminal\"></div>",
+      "css": ".ds-terminal-canvas { width: 100%; height: 100%; background: #2b2b2b; color: #fff; }"
+    },
+    {
+      "name": "Terminal Sidebar",
+      "kind": "nav",
+      "refersTo": "terminal-sidebar",
+      "description": "Direct Terminal session list and add-session control.",
+      "html": "<nav class=\"ds-terminal-sidebar\"><button class=\"ds-sidebar-add\">Add a Terminal</button><button class=\"ds-terminal-tab\">terminal 1</button></nav>",
+      "css": ".ds-terminal-sidebar { width: 200px; min-height: 100%; background: #1a1a1a; color: #fff; } .ds-sidebar-add, .ds-terminal-tab { display: block; width: 100%; padding: 12px 16px; border: 0; color: rgba(255,255,255,.9); background: transparent; text-align: left; font: 400 12px/1.4 system-ui, sans-serif; } .ds-sidebar-add { height: 50px; border-bottom: 2px solid #232528; } .ds-sidebar-add:hover, .ds-terminal-tab:hover { background: #232323; } .ds-terminal-tab:focus-visible, .ds-sidebar-add:focus-visible { outline: 2px solid #bfbfbf; outline-offset: -2px; }"
+    },
+    {
+      "name": "Recovery Button",
+      "kind": "button",
+      "refersTo": "recovery-button",
+      "description": "Retry or reconnect action shown after a failed or ended session.",
+      "html": "<button class=\"ds-recovery-button\">Reconnect</button>",
+      "css": ".ds-recovery-button { padding: 8px 12px; border: 0; border-radius: 4px; background: #fff; color: #1a1a1a; font: 400 14px/1.4 system-ui, sans-serif; cursor: pointer; } .ds-recovery-button:hover { background: #bfbfbf; } .ds-recovery-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cloud Shell",
+    "overview": "A full-screen operational work surface. Dark tonal layers keep attention on command output while compact labels and explicit recovery states explain what the session is doing.",
+    "keyCharacteristics": ["full-screen terminal", "dark neutral surfaces", "compact operational labels", "keyboard-first recovery"],
+    "rules": [
+      {"name": "The Shell Is the Accent Rule", "body": "Do not introduce competing decorative accents on the terminal surface.", "section": "colors"},
+      {"name": "The Readable Shell Rule", "body": "Keep terminal output monospace and at least 14px.", "section": "typography"},
+      {"name": "The Flat-By-Default Rule", "body": "Use tonal layers and state overlays instead of decorative shadows.", "section": "elevation"}
+    ],
+    "dos": ["Do keep the terminal canvas full-screen.", "Do identify the active target.", "Do expose recovery actions."],
+    "donts": ["Don't add marketing hero content.", "Don't use ornamental gradients or broad soft shadows.", "Don't guess a bridge URL."]
+  }
+}
