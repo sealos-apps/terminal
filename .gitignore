@@ -1,0 +1,11 @@
+.DS_Store
+*.log
+
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/
+frontend/pnpm-debug.log*
+
+controller/bin/
+controller/cover.out
+controller/testbin/
