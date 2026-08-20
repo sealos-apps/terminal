@@ -101,6 +101,11 @@ jobs:
       oss_prefix: ${{ steps.metadata.outputs.oss_prefix }}
       oss_tag: ${{ steps.metadata.outputs.oss_tag }}
     steps:
+      - name: Reject publishing from non-main manual runs
+        if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name != 'main' && (inputs.publish_images == true || inputs.upload_oss == true)
+        run: |
+          echo "::error::Publishing from a non-main branch is not supported; run this workflow from main or a v* tag."
+          exit 1
       - name: Compute archive metadata
         id: metadata
         shell: bash
@@ -109,7 +114,7 @@ jobs:
 
           short_sha="${GITHUB_SHA:0:7}"
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
-            oss_tag="${GITHUB_REF_NAME}"
+            oss_tag="${GITHUB_REF_NAME//\//-}"
             oss_prefix="release/${GITHUB_REF_NAME}"
           else
             oss_tag="main-${short_sha}"
@@ -126,6 +131,7 @@ jobs:
     needs:
       - frontend
       - controller
+      - release-metadata
     permissions:
       contents: read
       packages: write
