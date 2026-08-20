@@ -24,6 +24,8 @@ make controller-image PLATFORM=linux/amd64
 
 更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。GitHub Actions 默认发布 amd64；只有手动工作流显式打开 `publish_arm64` 时才增加 arm64。
 
+GitHub Actions 会把 frontend 和 controller 的 Sealos 集群包上传到 OSS。`main` 使用 `ci/main/<7-char-sha>/`，`v*` tag 使用 `release/<tag>/`；集群包不作为 GitHub Release asset 发布。仓库变量为 `OSS_BUCKET`，仓库 secrets 为 `OSS_ENDPOINT`、`OSS_ACCESS_KEY_ID` 和 `OSS_ACCESS_KEY_SECRET`，具体路径配置见 [`docs/runbook.md`](docs/runbook.md#ci-archive-upload)。
+
 ## 项目文档
 
 - [`PRODUCT.md`](PRODUCT.md)：产品目标、用户、边界和设计原则。
