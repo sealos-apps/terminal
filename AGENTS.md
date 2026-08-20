@@ -60,6 +60,12 @@ Helm charts must pass `helm lint` and an HTTP-mode `helm template` render.
   namespaces described in `docs/runbook.md`.
 - Build and publish `linux/amd64` by default. ARM64 is opt-in in the manual
   workflow.
+- CI cluster archives use repository variable `OSS_BUCKET` and secrets
+  `OSS_ENDPOINT`, `OSS_ACCESS_KEY_ID`, and `OSS_ACCESS_KEY_SECRET`; missing OSS
+  configuration must fail the publishing job.
+- Manual publishing runs must target `main` or a `v*` tag; archive filenames
+  replace `/` in tag names with `-` while the OSS release prefix keeps the
+  original tag.
 - Keep `TTY_AGENT_BASE_URL` pointed at the bridge base URL, never at the
   Terminal frontend URL.
 - Cluster bundles load app values through `/root/.sealos/cloud/values/apps/`
