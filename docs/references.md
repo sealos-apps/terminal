@@ -14,9 +14,8 @@ define the Terminal contract.
 | Deployment and release operations | [`runbook.md`](runbook.md) |
 | Local agent rules | [`AGENTS.md`](../AGENTS.md) |
 | Frontend package contract | [`frontend/package.json`](../frontend/package.json) |
-| Frontend deployment values | [`frontend/deploy/charts/terminal-frontend/values.yaml`](../frontend/deploy/charts/terminal-frontend/values.yaml) |
+| Unified deployment values | [`deploy/charts/terminal/values.yaml`](../deploy/charts/terminal/values.yaml) |
 | Controller API and CRD | [`controller/api/v1/terminal_types.go`](../controller/api/v1/terminal_types.go) |
-| Controller deployment values | [`controller/deploy/charts/terminal-controller/values.yaml`](../controller/deploy/charts/terminal-controller/values.yaml) |
 
 ## Sealos Repositories and Services
 

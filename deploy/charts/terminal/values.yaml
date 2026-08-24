@@ -1,0 +1,138 @@
+# Default values for the unified Sealos Terminal chart.
+
+frontend:
+  image: ghcr.io/sealos-apps/terminal/runtime/frontend:latest
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  fullnameOverride: "terminal-frontend"
+  replicaCount: 1
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - "ALL"
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  ingress:
+    className: nginx
+    name: sealos-terminal
+    host: ""
+    annotations: {}
+  terminalConfig:
+    cloudDomain: "127.0.0.1.nip.io"
+    cloudPort: ""
+    httpPort: ""
+    disableHttps: false
+    certSecretName: "wildcard-cert"
+    ttydImage: "docker.io/labring4docker/terminal:1.25.1-5"
+    keepalived: "30m"
+    ttyAgentBaseUrl: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                    - terminal-frontend
+            topologyKey: "kubernetes.io/hostname"
+
+controller:
+  replicaCount: 1
+  image: ghcr.io/sealos-apps/terminal/runtime/controller:latest
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: "terminal"
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: {}
+    name: "terminal-controller-manager"
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+  service:
+    metrics:
+      port: 8443
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  config:
+    cloudDomain: "cloud.sealos.io"
+    cloudPort: ""
+    httpPort: ""
+    disableHttps: false
+    certSecretName: ""
+    ingressTLSSecretName: "wildcard-cert-sealos"
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 2
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8081
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 30
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Top-level aliases support Sealos' generic HTTP-mode Helm checks and older
+# install values. Runtime deployment prefers global.http, then these aliases.
+cloudDomain: ""
+cloudPort: ""
+httpPort: ""
+disableHttps: ""
+certSecretName: ""
+
+global:
+  http:
+    domain: ""
+    httpsPort: ""
+    httpPort: ""
+    disableHttps: ""
+    certSecretName: ""
+
+platform:
+  tlsRejectUnauthorized: "1"

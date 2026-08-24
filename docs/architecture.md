@@ -30,8 +30,8 @@ published TTY client supplies the bridge execution path.
 
 - `frontend/`: Next.js UI, `/api/apply`, `/exec`, and health endpoint.
 - `controller/`: Go controller, CRD, RBAC, Helm chart, and health endpoints.
-- `frontend/deploy/`: frontend Sealos cluster image bundle.
-- `controller/deploy/`: controller Sealos cluster image bundle.
+- `deploy/`: unified Sealos cluster image bundle and Helm chart for frontend and
+  controller, installed in `terminal-system`.
 - `sealos-tty-bridge`: external bridge service and its own deployment lifecycle.
 
 The Sealos main repository remains the owner of application callers such as

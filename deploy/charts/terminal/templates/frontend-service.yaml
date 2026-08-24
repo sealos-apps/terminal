@@ -6,11 +6,11 @@ metadata:
   name: {{ include "terminal-frontend.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.frontend.service.type }}
   ports:
     - name: http
-      port: {{ .Values.service.port }}
+      port: {{ .Values.frontend.service.port }}
       protocol: TCP
-      targetPort: {{ .Values.service.port }}
+      targetPort: {{ .Values.frontend.service.port }}
   selector:
     {{- include "terminal-frontend.selectorLabels" . | nindent 4 }}

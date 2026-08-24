@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "terminal-frontend.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.frontend.replicaCount }}
   selector:
     matchLabels:
       {{- include "terminal-frontend.selectorLabels" . | nindent 6 }}
@@ -20,54 +20,54 @@ spec:
       labels:
         {{- include "terminal-frontend.labels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-      {{- with .Values.podAnnotations }}
+        checksum/config: {{ include (print $.Template.BasePath "/frontend-configmap.yaml") . | sha256sum }}
+      {{- with .Values.frontend.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with .Values.frontend.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml .Values.frontend.securityContext | nindent 12 }}
           env:
             - name: TTYD_IMAGE
-              value: {{ .Values.terminalConfig.ttydImage | quote }}
+              value: {{ .Values.frontend.terminalConfig.ttydImage | quote }}
             - name: SITE
               value: {{ include "terminal-frontend.cloudOrigin" . | quote }}
             - name: KEEPALIVED
-              value: {{ .Values.terminalConfig.keepalived | quote }}
+              value: {{ .Values.frontend.terminalConfig.keepalived | quote }}
             - name: TTY_AGENT_BASE_URL
-              value: {{ .Values.terminalConfig.ttyAgentBaseUrl | quote }}
+              value: {{ .Values.frontend.terminalConfig.ttyAgentBaseUrl | quote }}
             - name: NODE_TLS_REJECT_UNAUTHORIZED
               value: {{ .Values.platform.tlsRejectUnauthorized | quote }}
-          image: {{ .Values.image | quote }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          image: {{ .Values.frontend.image | quote }}
+          imagePullPolicy: {{ .Values.frontend.imagePullPolicy }}
           startupProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.service.port }}
+              port: {{ .Values.frontend.service.port }}
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.service.port }}
+              port: {{ .Values.frontend.service.port }}
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.service.port }}
+              port: {{ .Values.frontend.service.port }}
             periodSeconds: 20
             timeoutSeconds: 2
             failureThreshold: 3
@@ -75,7 +75,7 @@ spec:
             - name: terminal-frontend-volume
               mountPath: /config.yaml
               subPath: config.yaml
-      {{- with .Values.affinity }}
+      {{- with .Values.frontend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}

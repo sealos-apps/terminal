@@ -9,7 +9,7 @@ metadata:
 spec:
   ports:
   - name: https
-    port: 8443
+    port: {{ .Values.controller.service.metrics.port }}
     protocol: TCP
     targetPort: https
   selector:

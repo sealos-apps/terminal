@@ -3,14 +3,14 @@
 ## Scope
 
 This repository owns the standalone Sealos Terminal frontend and the Terminal
-CRD controller. It is an application repository with two independently
-deployable units.
+CRD controller. It is an application repository with two runtime units and one
+unified deployable unit.
 
 ## Structure
 
-- `frontend/`: Next.js pages, `/api/apply`, `/exec`, and the frontend Helm bundle.
-- `controller/`: Go controller, `Terminal` CRD, RBAC, health endpoints, and the
-  controller Helm bundle.
+- `frontend/`: Next.js pages, `/api/apply`, and `/exec`.
+- `controller/`: Go controller, `Terminal` CRD, RBAC, and health endpoints.
+- `deploy/`: unified Sealos bundle and Helm chart for frontend and controller.
 - `docs/`: architecture, information architecture, references, and operations.
 - `PRODUCT.md`: product purpose, users, boundaries, and strategic principles.
 - `DESIGN.md`: current frontend visual system and UI guardrails.
@@ -52,7 +52,8 @@ make test
 make build TARGETARCH=amd64
 ```
 
-Helm charts must pass `helm lint` and an HTTP-mode `helm template` render.
+The unified Helm chart must pass `helm lint` and an HTTP-mode `helm template`
+render.
 
 ## Deployment Rules
 

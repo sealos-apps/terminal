@@ -2,17 +2,17 @@
 Expand the name of the chart.
 */}}
 {{- define "terminal-frontend.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default "terminal-frontend" .Values.frontend.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
 {{- define "terminal-frontend.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- if .Values.frontend.fullnameOverride }}
+{{- .Values.frontend.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := default "terminal-frontend" .Values.frontend.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -61,15 +61,15 @@ Return the effective global HTTP value, falling back to the legacy
 terminalConfig field for direct chart users and older values files.
 */}}
 {{- define "terminal-frontend.cloudDomain" -}}
-{{- default (default .Values.terminalConfig.cloudDomain .Values.cloudDomain) .Values.global.http.domain -}}
+{{- default (default .Values.frontend.terminalConfig.cloudDomain .Values.cloudDomain) .Values.global.http.domain -}}
 {{- end }}
 
 {{- define "terminal-frontend.cloudPort" -}}
-{{- default (default .Values.terminalConfig.cloudPort .Values.cloudPort) .Values.global.http.httpsPort -}}
+{{- default (default .Values.frontend.terminalConfig.cloudPort .Values.cloudPort) .Values.global.http.httpsPort -}}
 {{- end }}
 
 {{- define "terminal-frontend.httpPort" -}}
-{{- default (default .Values.terminalConfig.httpPort .Values.httpPort) .Values.global.http.httpPort -}}
+{{- default (default .Values.frontend.terminalConfig.httpPort .Values.httpPort) .Values.global.http.httpPort -}}
 {{- end }}
 
 {{- define "terminal-frontend.disableHttps" -}}
@@ -78,12 +78,12 @@ terminalConfig field for direct chart users and older values files.
 {{- else if ne (toString .Values.disableHttps) "" -}}
 {{- toString .Values.disableHttps -}}
 {{- else -}}
-{{- toString .Values.terminalConfig.disableHttps -}}
+{{- toString .Values.frontend.terminalConfig.disableHttps -}}
 {{- end -}}
 {{- end }}
 
 {{- define "terminal-frontend.certSecretName" -}}
-{{- default (default .Values.terminalConfig.certSecretName .Values.certSecretName) .Values.global.http.certSecretName -}}
+{{- default (default .Values.frontend.terminalConfig.certSecretName .Values.certSecretName) .Values.global.http.certSecretName -}}
 {{- end }}
 
 {{/* HTTP scheme for desktop-facing URLs. */}}
@@ -128,9 +128,9 @@ Optional ":port" suffix for desktop-facing URLs.
 {{- end }}
 
 {{- define "terminal-frontend.host" -}}
-{{- default (printf "terminal.%s" (include "terminal-frontend.cloudDomain" .)) .Values.ingress.host -}}
+{{- default (printf "terminal.%s" (include "terminal-frontend.cloudDomain" .)) .Values.frontend.ingress.host -}}
 {{- end }}
 
 {{- define "terminal-frontend.ingressName" -}}
-{{- default "sealos-terminal" .Values.ingress.name -}}
+{{- default "sealos-terminal" .Values.frontend.ingress.name -}}
 {{- end }}
