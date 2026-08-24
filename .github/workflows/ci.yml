@@ -156,6 +156,7 @@ jobs:
           echo "OSS prefix: ${oss_prefix}"
 
   runtime_images_amd64:
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
     runs-on: ubuntu-24.04
     needs:
       - frontend
