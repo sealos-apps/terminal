@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/sealos-apps/terminal/runtime/controller:latest
+IMG ?= ghcr.io/sealos-apps/terminal/terminal-controller:latest
 TARGETARCH ?= amd64
 PLATFORM ?= linux/amd64
 

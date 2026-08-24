@@ -1,0 +1,540 @@
+name: terminal-images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: Publish runtime and cluster images
+        required: true
+        default: false
+        type: boolean
+      upload_oss:
+        description: Upload cluster image archives to OSS
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SEALOS_VERSION: v5.1.2-rc5
+  FRONTEND_IMAGE: ghcr.io/sealos-apps/terminal/terminal-frontend
+  CONTROLLER_IMAGE: ghcr.io/sealos-apps/terminal/terminal-controller
+  CLUSTER_IMAGE: ghcr.io/sealos-apps/terminal/terminal-cluster
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify frontend
+        working-directory: frontend
+        run: |
+          pnpm test:ci
+          pnpm test:components:ci
+          pnpm lint
+          pnpm build
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+      - name: Verify controller
+        working-directory: controller
+        run: |
+          go test ./...
+          go build ./...
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+      - name: Verify Helm chart
+        run: |
+          set -euo pipefail
+          helm lint deploy/charts/terminal -f deploy/charts/terminal/terminal-values.yaml
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string frontend.terminalConfig.ttyAgentBaseUrl=https://tty-bridge.example.com >/tmp/terminal-template.yaml
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string global.http.disableHttps=true \
+            --set-string global.http.domain=terminal.example.com \
+            --set-string global.http.httpPort=80 >/tmp/terminal-http.yaml
+          if grep -E 'https://|:443|^  tls:' /tmp/terminal-http.yaml | \
+            grep -Ev 'https://[^[:space:]" ]+\.svc\.cluster\.local(:[0-9]+)?/'; then
+            echo 'HTTP render contains an external HTTPS URL, port 443, or Ingress TLS.' >&2
+            exit 1
+          fi
+
+  release-metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.metadata.outputs.image_tag }}
+      is_release: ${{ steps.metadata.outputs.is_release }}
+      short_sha: ${{ steps.metadata.outputs.short_sha }}
+      image_version: ${{ steps.metadata.outputs.image_version }}
+      archive_version: ${{ steps.metadata.outputs.archive_version }}
+      oss_prefix: ${{ steps.metadata.outputs.oss_prefix }}
+    steps:
+      - name: Reject publishing from non-main manual runs
+        if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name != 'main' && (inputs.publish_images == true || inputs.upload_oss == true)
+        run: |
+          echo "::error::Publishing from a non-main branch is not supported; run this workflow from main or a v* tag."
+          exit 1
+      - name: Compute release metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          IMAGE_VERSION="${GITHUB_REF_NAME}-${SHORT_SHA}"
+          ARCHIVE_VERSION="${IMAGE_VERSION//\//-}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            IMAGE_TAG="${GITHUB_REF_NAME}"
+            IS_RELEASE="true"
+            OSS_PREFIX="release/${GITHUB_REF_NAME}"
+          else
+            IMAGE_TAG="sha-${SHORT_SHA}"
+            IS_RELEASE="false"
+            OSS_PREFIX="ci/main/${SHORT_SHA}"
+          fi
+
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "is_release=${IS_RELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "short_sha=${SHORT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "image_version=${IMAGE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "archive_version=${ARCHIVE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "oss_prefix=${OSS_PREFIX}" >> "${GITHUB_OUTPUT}"
+          echo "Image tag: ${IMAGE_TAG}"
+          echo "Image version: ${IMAGE_VERSION}"
+          echo "OSS prefix: ${OSS_PREFIX}"
+
+  runtime_images_amd64:
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    runs-on: ubuntu-24.04
+    needs:
+      - verify
+      - release-metadata
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: frontend
+            image: ghcr.io/sealos-apps/terminal/terminal-frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - component: controller
+            image: ghcr.io/sealos-apps/terminal/terminal-controller
+            context: controller
+            dockerfile: controller/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.component == 'controller'
+        with:
+          go-version: "1.24.0"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build controller binary
+        if: matrix.component == 'controller'
+        run: |
+          make -C controller build TARGETARCH=amd64
+          mv controller/bin/manager controller/bin/controller-terminal-amd64
+          chmod +x controller/bin/controller-terminal-amd64
+      - name: Build and push runtime image
+        env:
+          RUNTIME_IMAGE: ${{ matrix.image }}:${{ needs.release-metadata.outputs.image_tag }}-amd64
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag "${RUNTIME_IMAGE}" \
+            --file "${{ matrix.dockerfile }}" \
+            --build-arg TARGETARCH=amd64 \
+            "${{ matrix.context }}"
+          docker push "${RUNTIME_IMAGE}"
+
+  runtime_images_arm64:
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - verify
+      - release-metadata
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: frontend
+            image: ghcr.io/sealos-apps/terminal/terminal-frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+          - component: controller
+            image: ghcr.io/sealos-apps/terminal/terminal-controller
+            context: controller
+            dockerfile: controller/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.component == 'controller'
+        with:
+          go-version: "1.24.0"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build controller binary
+        if: matrix.component == 'controller'
+        run: |
+          make -C controller build TARGETARCH=arm64
+          mv controller/bin/manager controller/bin/controller-terminal-arm64
+          chmod +x controller/bin/controller-terminal-arm64
+      - name: Build and push runtime image
+        env:
+          RUNTIME_IMAGE: ${{ matrix.image }}:${{ needs.release-metadata.outputs.image_tag }}-arm64
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag "${RUNTIME_IMAGE}" \
+            --file "${{ matrix.dockerfile }}" \
+            --build-arg TARGETARCH=arm64 \
+            "${{ matrix.context }}"
+          docker push "${RUNTIME_IMAGE}"
+
+  runtime-release:
+    runs-on: ubuntu-24.04
+    needs:
+      - runtime_images_amd64
+      - runtime_images_arm64
+      - release-metadata
+    if: >-
+      always() &&
+      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
+      needs.runtime_images_amd64.result == 'success' &&
+      needs.runtime_images_arm64.result == 'success' &&
+      needs.release-metadata.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish runtime manifests
+        env:
+          IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
+          IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
+        run: |
+          set -euo pipefail
+          for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}"; do
+            sources=(
+              "${image}:${IMAGE_TAG}-amd64"
+              "${image}:${IMAGE_TAG}-arm64"
+            )
+            docker manifest create "${image}:${IMAGE_TAG}" "${sources[@]}"
+            docker manifest push "${image}:${IMAGE_TAG}"
+            docker manifest inspect "${image}:${IMAGE_TAG}"
+            if [[ "${IS_RELEASE}" == "true" ]]; then
+              docker manifest create "${image}:latest" "${sources[@]}"
+              docker manifest push "${image}:latest"
+              docker manifest inspect "${image}:latest"
+            fi
+          done
+
+  scan-runtime-images:
+    runs-on: ubuntu-24.04
+    needs:
+      - runtime-release
+      - release-metadata
+    if: >-
+      always() &&
+      needs.runtime-release.result == 'success' &&
+      needs.release-metadata.result == 'success'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.FRONTEND_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+      - name: Upload frontend scan
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+      - name: Scan controller image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.CONTROLLER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          format: sarif
+          output: trivy-controller.sarif
+          severity: CRITICAL,HIGH
+      - name: Upload controller scan
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-controller.sarif
+          category: trivy-controller
+
+  cluster_images_amd64:
+    runs-on: ubuntu-24.04
+    needs:
+      - runtime-release
+      - release-metadata
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Sealos
+        run: |
+          set -euo pipefail
+          work_dir=$(mktemp -d)
+          sealos_version="${SEALOS_VERSION#v}"
+          curl -fsSL -o "${work_dir}/sealos.tar.gz" \
+            "https://github.com/labring/sealos/releases/download/${SEALOS_VERSION}/sealos_${sealos_version}_linux_amd64.tar.gz"
+          tar -xzf "${work_dir}/sealos.tar.gz" -C "${work_dir}"
+          sudo install "${work_dir}/sealos" /usr/local/bin/sealos
+          sealos version
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login Sealos to GHCR
+        run: sudo sealos login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+      - name: Build and archive cluster image
+        working-directory: deploy
+        env:
+          FRONTEND_RUNTIME_IMAGE: ${{ env.FRONTEND_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          CONTROLLER_RUNTIME_IMAGE: ${{ env.CONTROLLER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-amd64
+          ARCH: amd64
+          EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
+          ARCHIVE_VERSION: ${{ needs.release-metadata.outputs.archive_version }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          IMAGE_VERSION="${GITHUB_REF_NAME}-${SHORT_SHA}"
+          [[ "${IMAGE_VERSION}" == "${EXPECTED_IMAGE_VERSION}" ]]
+          TAR_BASENAME="terminal-cluster-${ARCHIVE_VERSION}-${ARCH}"
+          chart_values="${GITHUB_WORKSPACE}/deploy/charts/terminal/values.yaml"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-frontend.*;  image: ${FRONTEND_RUNTIME_IMAGE};" "${chart_values}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-controller.*;  image: ${CONTROLLER_RUNTIME_IMAGE};" "${chart_values}"
+          grep -Fqx "  image: ${FRONTEND_RUNTIME_IMAGE}" <(sed -n '/^frontend:/,/^controller:/{/^  image:/p;}' "${chart_values}")
+          grep -Fqx "  image: ${CONTROLLER_RUNTIME_IMAGE}" <(sed -n '/^controller:/,/^cloudDomain:/{/^  image:/p;}' "${chart_values}")
+          rm -rf registry
+          sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
+          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
+          sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
+          sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
+          gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
+          md5sum "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
+          ls -lh "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cluster-bundle-${{ needs.release-metadata.outputs.archive_version }}-amd64
+          path: |
+            ${{ runner.temp }}/terminal-cluster-${{ needs.release-metadata.outputs.archive_version }}-amd64.tar.gz
+            ${{ runner.temp }}/terminal-cluster-${{ needs.release-metadata.outputs.archive_version }}-amd64.tar.gz.md5
+          if-no-files-found: error
+          retention-days: 7
+
+  cluster_images_arm64:
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - runtime-release
+      - release-metadata
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Sealos
+        run: |
+          set -euo pipefail
+          work_dir=$(mktemp -d)
+          sealos_version="${SEALOS_VERSION#v}"
+          curl -fsSL -o "${work_dir}/sealos.tar.gz" \
+            "https://github.com/labring/sealos/releases/download/${SEALOS_VERSION}/sealos_${sealos_version}_linux_arm64.tar.gz"
+          tar -xzf "${work_dir}/sealos.tar.gz" -C "${work_dir}"
+          sudo install "${work_dir}/sealos" /usr/local/bin/sealos
+          sealos version
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login Sealos to GHCR
+        run: sudo sealos login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+      - name: Build and archive cluster image
+        working-directory: deploy
+        env:
+          FRONTEND_RUNTIME_IMAGE: ${{ env.FRONTEND_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          CONTROLLER_RUNTIME_IMAGE: ${{ env.CONTROLLER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-arm64
+          ARCH: arm64
+          EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
+          ARCHIVE_VERSION: ${{ needs.release-metadata.outputs.archive_version }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          IMAGE_VERSION="${GITHUB_REF_NAME}-${SHORT_SHA}"
+          [[ "${IMAGE_VERSION}" == "${EXPECTED_IMAGE_VERSION}" ]]
+          TAR_BASENAME="terminal-cluster-${ARCHIVE_VERSION}-${ARCH}"
+          chart_values="${GITHUB_WORKSPACE}/deploy/charts/terminal/values.yaml"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-frontend.*;  image: ${FRONTEND_RUNTIME_IMAGE};" "${chart_values}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-controller.*;  image: ${CONTROLLER_RUNTIME_IMAGE};" "${chart_values}"
+          grep -Fqx "  image: ${FRONTEND_RUNTIME_IMAGE}" <(sed -n '/^frontend:/,/^controller:/{/^  image:/p;}' "${chart_values}")
+          grep -Fqx "  image: ${CONTROLLER_RUNTIME_IMAGE}" <(sed -n '/^controller:/,/^cloudDomain:/{/^  image:/p;}' "${chart_values}")
+          rm -rf registry
+          sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
+          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
+          sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
+          sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
+          gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
+          md5sum "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
+          ls -lh "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cluster-bundle-${{ needs.release-metadata.outputs.archive_version }}-arm64
+          path: |
+            ${{ runner.temp }}/terminal-cluster-${{ needs.release-metadata.outputs.archive_version }}-arm64.tar.gz
+            ${{ runner.temp }}/terminal-cluster-${{ needs.release-metadata.outputs.archive_version }}-arm64.tar.gz.md5
+          if-no-files-found: error
+          retention-days: 7
+
+  cluster-release:
+    runs-on: ubuntu-24.04
+    needs:
+      - cluster_images_amd64
+      - cluster_images_arm64
+      - release-metadata
+    if: >-
+      always() &&
+      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
+      needs.cluster_images_amd64.result == 'success' &&
+      needs.cluster_images_arm64.result == 'success' &&
+      needs.release-metadata.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish cluster manifests
+        env:
+          IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
+          IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
+        run: |
+          set -euo pipefail
+          sources=(
+            "${CLUSTER_IMAGE}:${IMAGE_TAG}-amd64"
+            "${CLUSTER_IMAGE}:${IMAGE_TAG}-arm64"
+          )
+          docker manifest create "${CLUSTER_IMAGE}:${IMAGE_TAG}" "${sources[@]}"
+          docker manifest push "${CLUSTER_IMAGE}:${IMAGE_TAG}"
+          docker manifest inspect "${CLUSTER_IMAGE}:${IMAGE_TAG}"
+          if [[ "${IS_RELEASE}" == "true" ]]; then
+            docker manifest create "${CLUSTER_IMAGE}:latest" "${sources[@]}"
+            docker manifest push "${CLUSTER_IMAGE}:latest"
+            docker manifest inspect "${CLUSTER_IMAGE}:latest"
+          fi
+
+  oss-upload:
+    runs-on: ubuntu-latest
+    needs:
+      - cluster_images_amd64
+      - cluster_images_arm64
+      - release-metadata
+    if: >-
+      always() &&
+      (github.event_name == 'push' || inputs.upload_oss == true) &&
+      needs.cluster_images_amd64.result == 'success' &&
+      needs.cluster_images_arm64.result == 'success' &&
+      needs.release-metadata.result == 'success'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cluster-bundle-*
+          path: cluster-bundles
+          merge-multiple: true
+      - name: Upload cluster archives to OSS
+        env:
+          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_BUCKET: ${{ vars.OSS_BUCKET }}
+          OSS_PREFIX: ${{ needs.release-metadata.outputs.oss_prefix }}
+        run: |
+          set -euo pipefail
+          : "${OSS_ENDPOINT:?OSS_ENDPOINT is required}"
+          : "${OSS_ACCESS_KEY_ID:?OSS_ACCESS_KEY_ID is required}"
+          : "${OSS_ACCESS_KEY_SECRET:?OSS_ACCESS_KEY_SECRET is required}"
+          : "${OSS_BUCKET:?OSS_BUCKET is required}"
+          : "${OSS_PREFIX:?OSS_PREFIX is required}"
+
+          shopt -s nullglob
+          archives=(cluster-bundles/*.tar.gz)
+          checksums=(cluster-bundles/*.md5)
+          expected_archives=2
+          [[ "${#archives[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster archives, found ${#archives[@]}" >&2; exit 1; }
+          [[ "${#checksums[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster checksums, found ${#checksums[@]}" >&2; exit 1; }
+          ls -lh "${archives[@]}" "${checksums[@]}"
+
+          sudo -v
+          curl -fsSL https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
+          command -v ossutil64
+
+          for archive in "${archives[@]}"; do
+            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${archive}" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${archive}")"
+          done
+          for checksum in "${checksums[@]}"; do
+            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${checksum}" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${checksum}")"
+          done

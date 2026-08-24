@@ -1,7 +1,7 @@
 # Default values for the unified Sealos Terminal chart.
 
 frontend:
-  image: ghcr.io/sealos-apps/terminal/runtime/frontend:latest
+  image: ghcr.io/sealos-apps/terminal/terminal-frontend:latest
   imagePullPolicy: Always
   imagePullSecrets: []
   fullnameOverride: "terminal-frontend"
@@ -57,7 +57,7 @@ frontend:
 
 controller:
   replicaCount: 1
-  image: ghcr.io/sealos-apps/terminal/runtime/controller:latest
+  image: ghcr.io/sealos-apps/terminal/terminal-controller:latest
   imagePullPolicy: Always
   imagePullSecrets: []
   nameOverride: ""

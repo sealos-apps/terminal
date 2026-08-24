@@ -4,14 +4,16 @@
 
 The public runtime image names are:
 
-- `ghcr.io/sealos-apps/terminal/runtime/frontend`
-- `ghcr.io/sealos-apps/terminal/runtime/controller`
+- `ghcr.io/sealos-apps/terminal/terminal-frontend`
+- `ghcr.io/sealos-apps/terminal/terminal-controller`
+- `ghcr.io/sealos-apps/terminal/terminal-cluster`
 
 The GitHub Actions workflow always builds both `linux/amd64` on the native
 `ubuntu-24.04` runner and `linux/arm64` on the native `ubuntu-24.04-arm` runner
-for publishing. Pushes to `main` and `v*` tags publish both architectures and
-their multi-architecture manifests. The workflow does not use QEMU or buildx
-for cross-architecture compilation.
+for publishing. Main pushes use `sha-<7-char-sha>` image tags. Version tags use
+their `v*` tag, and only version tags update `latest`. Both cases publish
+multi-architecture manifests. The workflow does not use QEMU or buildx for
+cross-architecture compilation.
 
 ## Cluster Image Bundle
 
@@ -65,7 +67,10 @@ Terminal frontend or guessing a bridge address.
 ## CI Archive Upload
 
 On a publishing workflow run, the unified Terminal Sealos image is exported as
-a versioned `.tar.gz` file with an adjacent `.md5` file. GitHub
+a versioned `.tar.gz` file with an adjacent `.md5` file. The archive version is
+`${GITHUB_REF_NAME}-${SHORT_SHA}`, where `SHORT_SHA` is the first seven
+characters of `GITHUB_SHA`. The `/` character is replaced with `-` in archive
+filenames. GitHub
 Artifacts only pass the files between workflow jobs; OSS is the distribution
 source for offline cluster packages.
 
@@ -85,13 +90,13 @@ Configure these repository secrets:
 Main branch packages are uploaded to:
 
 ```text
-oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-terminal-main-<7-char-sha>-<arch>.tar.gz
+oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-<arch>.tar.gz
 ```
 
 Version tags use the release path:
 
 ```text
-oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-terminal-<tag>-<arch>.tar.gz
+oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-<arch>.tar.gz
 ```
 
 When a tag contains `/`, the workflow replaces `/` with `-` in archive

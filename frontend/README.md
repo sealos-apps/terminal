@@ -19,5 +19,5 @@ The `/exec` workflow requires `TTY_AGENT_BASE_URL` to point to the bridge base U
 ```bash
 pnpm test:ci
 pnpm build
-docker buildx build --platform linux/amd64 -t ghcr.io/sealos-apps/terminal/runtime/frontend:latest .
+docker buildx build --platform linux/amd64 -t ghcr.io/sealos-apps/terminal/terminal-frontend:latest .
 ```
