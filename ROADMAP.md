@@ -11,7 +11,7 @@ one unified deployment unit:
   in `terminal-system`.
 - `sealos-tty-bridge` remains an external deployment used by `/exec`.
 - Helm bundles, health probes, values loading, runtime images, cluster images,
-  OSS archives, and amd64-first CI are included.
+  OSS archives, and dual-architecture CI are included.
 
 ## Next
 
@@ -40,7 +40,6 @@ reconnect, authorization failure, and bridge-unavailable states.
 
 - Review GitHub Dependabot findings before the next release.
 - Pin or document runtime image provenance and release version policy.
-- Decide whether ARM64 should become a normal release target or remain manual.
 
 ## Later
 

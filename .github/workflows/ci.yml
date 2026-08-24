@@ -16,11 +16,6 @@ on:
         required: true
         default: false
         type: boolean
-      publish_arm64:
-        description: Also publish linux/arm64 images
-        required: true
-        default: false
-        type: boolean
       upload_oss:
         description: Upload cluster image archives to OSS
         required: true
@@ -209,7 +204,7 @@ jobs:
           fi
 
   runtime_images_arm64:
-    if: inputs.publish_arm64 == true && (inputs.publish_images == true || inputs.upload_oss == true)
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
     runs-on: ubuntu-24.04-arm
     needs:
       - frontend
@@ -266,7 +261,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.runtime_images_amd64.result == 'success' &&
-      (needs.runtime_images_arm64.result == 'success' || needs.runtime_images_arm64.result == 'skipped')
+      needs.runtime_images_arm64.result == 'success'
     permissions:
       contents: read
       packages: write
@@ -279,15 +274,14 @@ jobs:
       - name: Publish runtime manifests and inspect sizes
         env:
           IMAGE_NAMESPACE: ${{ env.RUNTIME_IMAGE_NAMESPACE }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
           SUPPORTED_PLATFORMS: linux/amd64,linux/arm64
         run: |
           set -euo pipefail
           for component in frontend controller; do
-            sources=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64")
-            if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-              sources+=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64")
-            fi
+            sources=(
+              "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64"
+              "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64"
+            )
             for tag in "${GITHUB_SHA}" latest; do
               target="${IMAGE_NAMESPACE}/${component}:${tag}"
               docker manifest create "${target}" "${sources[@]}"
@@ -296,7 +290,7 @@ jobs:
             done
           done
       - name: Runtime manifest summary
-        run: echo "Runtime manifests cover ${SUPPORTED_PLATFORMS} using native amd64 and optional native arm64 builds."
+        run: echo "Runtime manifests cover ${SUPPORTED_PLATFORMS} using native amd64 and arm64 builds."
 
   cluster_images_amd64:
     runs-on: ubuntu-24.04
@@ -361,7 +355,7 @@ jobs:
           retention-days: 7
 
   cluster_images_arm64:
-    if: inputs.publish_arm64 == true && (inputs.publish_images == true || inputs.upload_oss == true)
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
     runs-on: ubuntu-24.04-arm
     needs:
       - runtime-release
@@ -431,7 +425,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      (needs.cluster_images_arm64.result == 'success' || needs.cluster_images_arm64.result == 'skipped')
+      needs.cluster_images_arm64.result == 'success'
     permissions:
       contents: read
       packages: write
@@ -445,22 +439,21 @@ jobs:
       - name: Publish cluster manifests and inspect sizes
         env:
           IMAGE_NAMESPACE: ${{ env.CLUSTER_IMAGE_NAMESPACE }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
           SUPPORTED_PLATFORMS: linux/amd64,linux/arm64
         run: |
           set -euo pipefail
           component=terminal
-          sources=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64")
-          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-            sources+=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64")
-          fi
+          sources=(
+            "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64"
+            "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64"
+          )
           for tag in "${GITHUB_SHA}" latest; do
             target="${IMAGE_NAMESPACE}/${component}:${tag}"
             docker manifest create "${target}" "${sources[@]}"
             docker manifest push "${target}"
             docker manifest inspect "${target}"
           done
-          echo "Cluster manifests cover ${SUPPORTED_PLATFORMS} using native amd64 and optional native arm64 builds."
+          echo "Cluster manifests cover ${SUPPORTED_PLATFORMS} using native amd64 and arm64 builds."
 
   oss-upload:
     runs-on: ubuntu-latest
@@ -472,7 +465,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      (needs.cluster_images_arm64.result == 'success' || needs.cluster_images_arm64.result == 'skipped')
+      needs.cluster_images_arm64.result == 'success'
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -486,7 +479,6 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           OSS_PREFIX: ${{ needs.release-metadata.outputs.oss_prefix }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
         run: |
           set -euo pipefail
           : "${OSS_ENDPOINT:?OSS_ENDPOINT is required}"
@@ -498,10 +490,7 @@ jobs:
           shopt -s nullglob
           archives=(cluster-bundles/*.tar.gz)
           checksums=(cluster-bundles/*.md5)
-          expected_archives=1
-          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-            expected_archives=2
-          fi
+          expected_archives=2
           [[ "${#archives[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster archives, found ${#archives[@]}" >&2; exit 1; }
           [[ "${#checksums[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster checksums, found ${#checksums[@]}" >&2; exit 1; }
           ls -lh "${archives[@]}" "${checksums[@]}"

@@ -7,11 +7,11 @@ The public runtime image names are:
 - `ghcr.io/sealos-apps/terminal/runtime/frontend`
 - `ghcr.io/sealos-apps/terminal/runtime/controller`
 
-The GitHub Actions workflow builds `linux/amd64` on the native
-`ubuntu-24.04` runner by default. A manual workflow run can enable
-`publish_arm64` to build `linux/arm64` on the native `ubuntu-24.04-arm` runner
-and publish the multi-architecture manifests. The workflow does not use QEMU
-or buildx for cross-architecture compilation.
+The GitHub Actions workflow always builds both `linux/amd64` on the native
+`ubuntu-24.04` runner and `linux/arm64` on the native `ubuntu-24.04-arm` runner
+for publishing. Pushes to `main` and `v*` tags publish both architectures and
+their multi-architecture manifests. The workflow does not use QEMU or buildx
+for cross-architecture compilation.
 
 ## Cluster Image Bundle
 
@@ -97,16 +97,16 @@ oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-terminal-<tag>-<arch>.tar.gz
 When a tag contains `/`, the workflow replaces `/` with `-` in archive
 filenames while preserving the original tag in the OSS release prefix.
 
-Every archive has a matching `.md5` file. Pushes to `main` and `v*` tags
-upload automatically. A manual run with `upload_oss=true` also enables the
-image publishing prerequisites; ARM64 remains opt-in through
-`publish_arm64` (a manual ARM64 upload contains two archives instead of one).
+Every architecture archive has a matching `.md5` file, so a complete upload
+contains two archives and two checksums. Pushes to `main` and `v*` tags upload
+both architectures automatically. A manual run with `upload_oss=true` also
+enables the image publishing prerequisites and publishes both architectures.
 Manual runs that publish images or upload OSS must target `main` or a `v*` tag;
 publishing from another branch fails before the publishing jobs run.
 Missing OSS configuration or an incomplete artifact set fails the upload job
 instead of producing a green run without packages.
 
-The workflow never requires an ARM publish for the default amd64 release path.
-When ARM64 publishing is enabled, runtime and cluster images are built on the
+Publishing fails when either architecture build or archive is missing instead
+of producing a partial release. Runtime and cluster images are built on the
 native ARM64 runner, and manifests are combined with Docker's native
 `docker manifest` commands.

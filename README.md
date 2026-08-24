@@ -21,9 +21,9 @@ make frontend-image PLATFORM=linux/amd64
 make controller-image PLATFORM=linux/amd64
 ```
 
-默认只构建 `linux/amd64`。发布镜像时使用 `frontend-image-push` 和 `controller-image-push`，并先配置有权限的镜像仓库。
+本地镜像目标通过 `PLATFORM` 构建单一可加载镜像；GitHub Actions 在 Push 到 `main` 或 `v*` tag 时固定构建并发布 amd64 和 arm64，并自动发布多架构 manifest 与 OSS 集群包。手动工作流使用 `publish_images` 和 `upload_oss` 控制是否执行发布。
 
-更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。GitHub Actions 默认发布 amd64；只有手动工作流显式打开 `publish_arm64` 时才增加 arm64。
+更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。
 
 GitHub Actions 会把统一的 Terminal Sealos 集群包上传到 OSS。`main` 使用 `ci/main/<7-char-sha>/`，`v*` tag 使用 `release/<tag>/`；集群包不作为 GitHub Release asset 发布。仓库变量为 `OSS_BUCKET`，仓库 secrets 为 `OSS_ENDPOINT`、`OSS_ACCESS_KEY_ID` 和 `OSS_ACCESS_KEY_SECRET`，具体路径配置见 [`docs/runbook.md`](docs/runbook.md#ci-archive-upload)。
 
