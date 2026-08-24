@@ -1,7 +1,9 @@
-# User-customizable values for the unified Terminal deployment.
+# Default values for the unified Sealos Terminal chart.
 
 frontend:
   replicaCount: 1
+  podAnnotations: {}
+  podLabels: {}
   resources:
     limits:
       cpu: 2000m
@@ -13,11 +15,57 @@ frontend:
     ttydImage: "docker.io/labring4docker/terminal:1.25.1-5"
     keepalived: "30m"
     ttyAgentBaseUrl: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                    - terminal-frontend
+            topologyKey: "kubernetes.io/hostname"
 
 controller:
   replicaCount: 1
-  config:
-    ingressTLSSecretName: "wildcard-cert-sealos"
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 2
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8081
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 30
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 
 platform:
   tlsRejectUnauthorized: "1"
