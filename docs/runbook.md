@@ -7,9 +7,11 @@ The public runtime image names are:
 - `ghcr.io/sealos-apps/terminal/runtime/frontend`
 - `ghcr.io/sealos-apps/terminal/runtime/controller`
 
-The GitHub Actions workflow builds `linux/amd64` by default. A manual
-workflow run can enable `publish_arm64` to add `linux/arm64` and publish the
-multi-architecture manifests.
+The GitHub Actions workflow builds `linux/amd64` on the native
+`ubuntu-24.04` runner by default. A manual workflow run can enable
+`publish_arm64` to build `linux/arm64` on the native `ubuntu-24.04-arm` runner
+and publish the multi-architecture manifests. The workflow does not use QEMU
+or buildx for cross-architecture compilation.
 
 ## Cluster Image Bundle
 
@@ -105,3 +107,6 @@ Missing OSS configuration or an incomplete artifact set fails the upload job
 instead of producing a green run without packages.
 
 The workflow never requires an ARM publish for the default amd64 release path.
+When ARM64 publishing is enabled, runtime and cluster images are built on the
+native ARM64 runner, and manifests are combined with Docker's native
+`docker manifest` commands.
