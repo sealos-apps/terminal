@@ -1,9 +1,10 @@
 # Sealos Terminal
 
-独立的 Sealos Terminal 仓库，包含两个运行单元：
+独立的 Sealos Terminal 仓库，包含两个运行单元和一个统一部署包：
 
 - `frontend/`: Next.js Terminal 页面。
 - `controller/`: `Terminal` CRD controller，负责直接打开 Terminal 时创建临时工作负载。
+- `deploy/`: 同时部署 frontend 和 controller 的统一 Helm chart 与 Sealos bundle。
 
 ## 两条终端链路
 
@@ -24,7 +25,7 @@ make controller-image PLATFORM=linux/amd64
 
 更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。GitHub Actions 默认发布 amd64；只有手动工作流显式打开 `publish_arm64` 时才增加 arm64。
 
-GitHub Actions 会把 frontend 和 controller 的 Sealos 集群包上传到 OSS。`main` 使用 `ci/main/<7-char-sha>/`，`v*` tag 使用 `release/<tag>/`；集群包不作为 GitHub Release asset 发布。仓库变量为 `OSS_BUCKET`，仓库 secrets 为 `OSS_ENDPOINT`、`OSS_ACCESS_KEY_ID` 和 `OSS_ACCESS_KEY_SECRET`，具体路径配置见 [`docs/runbook.md`](docs/runbook.md#ci-archive-upload)。
+GitHub Actions 会把统一的 Terminal Sealos 集群包上传到 OSS。`main` 使用 `ci/main/<7-char-sha>/`，`v*` tag 使用 `release/<tag>/`；集群包不作为 GitHub Release asset 发布。仓库变量为 `OSS_BUCKET`，仓库 secrets 为 `OSS_ENDPOINT`、`OSS_ACCESS_KEY_ID` 和 `OSS_ACCESS_KEY_SECRET`，具体路径配置见 [`docs/runbook.md`](docs/runbook.md#ci-archive-upload)。
 
 ## 项目文档
 
@@ -41,8 +42,9 @@ GitHub Actions 会把 frontend 和 controller 的 Sealos 集群包上传到 OSS�
 部署 frontend 时设置：
 
 ```yaml
-terminalConfig:
-  ttyAgentBaseUrl: https://tty-bridge.example.com
+frontend:
+  terminalConfig:
+    ttyAgentBaseUrl: https://tty-bridge.example.com
 ```
 
 这会注入前端运行时环境变量 `TTY_AGENT_BASE_URL`。它必须指向 `sealos-tty-bridge` 的可访问 base URL，不能填 Terminal 前端自身地址。frontend 的 `/exec` 页面在配置为空时会直接显示配置错误，不会建立错误的 WebSocket 连接。
@@ -50,8 +52,7 @@ terminalConfig:
 ## Sealos 部署包
 
 ```bash
-make frontend-deploy-bundle
-make controller-deploy-bundle
+make terminal-deploy-bundle
 ```
 
-两个部署包各自使用自己的 Helm chart 和 entrypoint，可独立升级和回滚；controller 的升级 entrypoint 会在 Helm 升级前备份现有资源。
+部署包使用 `deploy/charts/terminal` 统一 Helm chart 和 `deploy/entrypoint.sh`，在 `terminal-system` 中同时安装 frontend 和 controller。迁移时会在安装新 release 前清理旧 frontend/controller release，并保留 Terminal CRD 与 Terminal CR。

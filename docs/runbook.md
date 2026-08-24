@@ -11,28 +11,29 @@ The GitHub Actions workflow builds `linux/amd64` by default. A manual
 workflow run can enable `publish_arm64` to add `linux/arm64` and publish the
 multi-architecture manifests.
 
-## Cluster Image Bundles
+## Cluster Image Bundle
 
-Each component has an independent Sealos bundle:
+Frontend and controller are installed together by one Sealos bundle:
 
 ```bash
-make frontend-deploy-bundle
-make controller-deploy-bundle
+make terminal-deploy-bundle
 ```
 
-The bundle entrypoint sources
+The bundle uses `deploy/entrypoint.sh`, sources
 `/root/.sealos/cloud/scripts/tools.sh`, reads runtime values from
 `sealos-system/sealos-config` and `cert-config`, and passes them to Helm.
 User overrides are loaded in stable filename order from:
 
 ```text
-/root/.sealos/cloud/values/apps/terminal-frontend/*-values.yaml
-/root/.sealos/cloud/values/apps/terminal-controller/*-values.yaml
+/root/.sealos/cloud/values/apps/terminal/*-values.yaml
 ```
 
-When an app directory has no values file, the entrypoint logs a warning and
-copies the chart's default `<name>-values.yaml` before installing or upgrading
-the Helm release.
+The release name is `terminal` and the namespace is `terminal-system`. During
+migration, the entrypoint backs up and removes the old frontend release and
+legacy controller release before installing the unified chart. The Terminal
+CRD and existing Terminal CRs are retained. When the unified values directory
+has no values file, the entrypoint migrates legacy values when available or
+copies `terminal-values.yaml` from the chart.
 
 ## HTTP and Certificates
 
@@ -50,8 +51,9 @@ Ingress TLS is omitted when `disableHttps=true`.
 Set the bridge base URL in the frontend chart values:
 
 ```yaml
-terminalConfig:
-  ttyAgentBaseUrl: https://tty-bridge.example.com
+frontend:
+  terminalConfig:
+    ttyAgentBaseUrl: https://tty-bridge.example.com
 ```
 
 The value is injected as `TTY_AGENT_BASE_URL`. An empty value intentionally
@@ -60,8 +62,8 @@ Terminal frontend or guessing a bridge address.
 
 ## CI Archive Upload
 
-On a publishing workflow run, the frontend and controller Sealos images are
-exported as versioned `.tar.gz` files with adjacent `.md5` files. GitHub
+On a publishing workflow run, the unified Terminal Sealos image is exported as
+a versioned `.tar.gz` file with an adjacent `.md5` file. GitHub
 Artifacts only pass the files between workflow jobs; OSS is the distribution
 source for offline cluster packages.
 
@@ -81,15 +83,13 @@ Configure these repository secrets:
 Main branch packages are uploaded to:
 
 ```text
-oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-web-main-<7-char-sha>-<arch>.tar.gz
-oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-controller-main-<7-char-sha>-<arch>.tar.gz
+oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-terminal-main-<7-char-sha>-<arch>.tar.gz
 ```
 
 Version tags use the release path:
 
 ```text
-oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-web-<tag>-<arch>.tar.gz
-oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-controller-<tag>-<arch>.tar.gz
+oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-terminal-<tag>-<arch>.tar.gz
 ```
 
 When a tag contains `/`, the workflow replaces `/` with `-` in archive
@@ -98,7 +98,7 @@ filenames while preserving the original tag in the OSS release prefix.
 Every archive has a matching `.md5` file. Pushes to `main` and `v*` tags
 upload automatically. A manual run with `upload_oss=true` also enables the
 image publishing prerequisites; ARM64 remains opt-in through
-`publish_arm64` (a manual ARM64 upload contains four archives instead of two).
+`publish_arm64` (a manual ARM64 upload contains two archives instead of one).
 Manual runs that publish images or upload OSS must target `main` or a `v*` tag;
 publishing from another branch fails before the publishing jobs run.
 Missing OSS configuration or an incomplete artifact set fails the upload job

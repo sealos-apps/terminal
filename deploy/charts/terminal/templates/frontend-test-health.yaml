@@ -18,4 +18,4 @@ spec:
         - --fail
         - --silent
         - --show-error
-        - "http://{{ include "terminal-frontend.fullname" . }}:{{ .Values.service.port }}/healthz"
+        - "http://{{ include "terminal-frontend.fullname" . }}:{{ .Values.frontend.service.port }}/healthz"

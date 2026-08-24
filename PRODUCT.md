@@ -17,7 +17,7 @@ makes connection failure or session exit obvious.
 
 ## Product Purpose
 
-Sealos Terminal provides two terminal entry points behind one independently
+Sealos Terminal provides two terminal entry points behind one unified
 deployable product:
 
 1. The direct `/` workflow creates a short-lived Terminal workload and embeds
@@ -27,7 +27,7 @@ deployable product:
 
 Success means a user can reach the intended shell without understanding the
 controller or bridge internals, while operators can deploy, upgrade, health
-check, and roll back the frontend and controller independently.
+check, and roll back the frontend and controller together through one release.
 
 ## Brand Personality
 

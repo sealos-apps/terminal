@@ -78,20 +78,32 @@ jobs:
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.3
-      - run: helm lint frontend/deploy/charts/terminal-frontend
-      - run: helm lint controller/deploy/charts/terminal-controller
+      - run: helm lint deploy/charts/terminal
       - run: |
-          helm template terminal-frontend frontend/deploy/charts/terminal-frontend \
-            --namespace terminal-frontend \
-            --set-string terminalConfig.ttyAgentBaseUrl=https://tty-bridge.example.com
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --set-string frontend.terminalConfig.ttyAgentBaseUrl=https://tty-bridge.example.com
       - run: |
-          helm template terminal-frontend frontend/deploy/charts/terminal-frontend \
-            --namespace terminal-frontend \
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
             --set-string global.http.disableHttps=true \
             --set-string global.http.domain=terminal.example.com \
             --set-string global.http.httpPort=80 > /tmp/terminal-frontend-http.yaml
           ! grep -Eq 'https://|:443|^  tls:' /tmp/terminal-frontend-http.yaml
-      - run: helm template terminal controller/deploy/charts/terminal-controller --namespace terminal-system
+      - run: helm template terminal deploy/charts/terminal --namespace terminal-system
+
+  sealos-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Sealos app audit skill
+        run: git clone --depth=1 https://github.com/sealos-apps/skills.git "${RUNNER_TEMP}/sealos-skills"
+      - name: Audit repository with sealos-apps-audit
+        run: |
+          python3 "${RUNNER_TEMP}/sealos-skills/skills/sealos-apps-audit/scripts/audit_sealos_apps.py" \
+            "${GITHUB_WORKSPACE}" \
+            --deploy-dir deploy \
+            --app-type app
 
   release-metadata:
     runs-on: ubuntu-latest
@@ -234,29 +246,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - component: frontend
-            deploy: frontend/deploy
-            chart_values: frontend/deploy/charts/terminal-frontend/values.yaml
-            runtime_image: frontend
-            cluster_image: cluster-web
+          - deploy: deploy
+            chart_values: deploy/charts/terminal/values.yaml
+            cluster_image: terminal
             arch: amd64
-          - component: controller
-            deploy: controller/deploy
-            chart_values: controller/deploy/charts/terminal-controller/values.yaml
-            runtime_image: controller
-            cluster_image: cluster-controller
-            arch: amd64
-          - component: frontend
-            deploy: frontend/deploy
-            chart_values: frontend/deploy/charts/terminal-frontend/values.yaml
-            runtime_image: frontend
-            cluster_image: cluster-web
-            arch: arm64
-          - component: controller
-            deploy: controller/deploy
-            chart_values: controller/deploy/charts/terminal-controller/values.yaml
-            runtime_image: controller
-            cluster_image: cluster-controller
+          - deploy: deploy
+            chart_values: deploy/charts/terminal/values.yaml
+            cluster_image: terminal
             arch: arm64
     steps:
       - uses: actions/checkout@v4
@@ -283,14 +279,16 @@ jobs:
         if: matrix.arch == 'amd64' || inputs.publish_arm64 == true
         working-directory: ${{ matrix.deploy }}
         env:
-          RUNTIME_IMAGE: ${{ env.RUNTIME_IMAGE_NAMESPACE }}/${{ matrix.runtime_image }}:${{ github.sha }}
+          FRONTEND_RUNTIME_IMAGE: ${{ env.RUNTIME_IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
+          CONTROLLER_RUNTIME_IMAGE: ${{ env.RUNTIME_IMAGE_NAMESPACE }}/controller:${{ github.sha }}
           CLUSTER_IMAGE: ${{ env.CLUSTER_IMAGE_NAMESPACE }}/${{ matrix.cluster_image }}:${{ github.sha }}-${{ matrix.arch }}
           ARCH: ${{ matrix.arch }}
           OSS_TAG: ${{ needs.release-metadata.outputs.oss_tag }}
         run: |
           set -euo pipefail
           tar_basename="terminal-${{ matrix.cluster_image }}-${OSS_TAG}-${ARCH}"
-          sed -i -E "s;^image: .*;image: ${RUNTIME_IMAGE};" "${GITHUB_WORKSPACE}/${{ matrix.chart_values }}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/runtime/frontend.*;  image: ${FRONTEND_RUNTIME_IMAGE};" "${GITHUB_WORKSPACE}/${{ matrix.chart_values }}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/runtime/controller.*;  image: ${CONTROLLER_RUNTIME_IMAGE};" "${GITHUB_WORKSPACE}/${{ matrix.chart_values }}"
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
           sudo sealos build -t "${CLUSTER_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
@@ -340,15 +338,14 @@ jobs:
           SUPPORTED_PLATFORMS: linux/amd64,linux/arm64
         run: |
           set -euo pipefail
-          for component in cluster-web cluster-controller; do
-            sources=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64")
-            if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-              sources+=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64")
-            fi
-            docker buildx imagetools create -t "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}" "${sources[@]}"
-            docker buildx imagetools create -t "${IMAGE_NAMESPACE}/${component}:latest" "${sources[@]}"
-            docker buildx imagetools inspect "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}"
-          done
+          component=terminal
+          sources=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-amd64")
+          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
+            sources+=("${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}-arm64")
+          fi
+          docker buildx imagetools create -t "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}" "${sources[@]}"
+          docker buildx imagetools create -t "${IMAGE_NAMESPACE}/${component}:latest" "${sources[@]}"
+          docker buildx imagetools inspect "${IMAGE_NAMESPACE}/${component}:${GITHUB_SHA}"
 
   oss-upload:
     runs-on: ubuntu-latest
@@ -381,9 +378,9 @@ jobs:
           shopt -s nullglob
           archives=(cluster-bundles/*.tar.gz)
           checksums=(cluster-bundles/*.md5)
-          expected_archives=2
+          expected_archives=1
           if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-            expected_archives=4
+            expected_archives=2
           fi
           [[ "${#archives[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster archives, found ${#archives[@]}" >&2; exit 1; }
           [[ "${#checksums[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster checksums, found ${#checksums[@]}" >&2; exit 1; }

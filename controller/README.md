@@ -12,7 +12,7 @@ make docker-build PLATFORM=linux/amd64
 
 ## Deployment
 
-The Helm chart is packaged in `deploy/charts/terminal-controller`. The Sealos deployment bundle uses `deploy/Kubefile` and `deploy/terminal-controller-entrypoint.sh`.
+The controller templates are packaged in the unified `../deploy/charts/terminal` Helm chart. The Sealos deployment bundle uses `../deploy/Kubefile` and `../deploy/entrypoint.sh`.
 
 The controller exposes `/healthz` and `/readyz` on port `8081`; the chart configures startup, liveness and readiness probes and backs up existing resources before Helm upgrades.
 

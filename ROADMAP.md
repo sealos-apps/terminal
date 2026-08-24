@@ -2,11 +2,13 @@
 
 ## Current Baseline
 
-The standalone repository is available on `main` with two independently
-deployable units:
+The standalone repository is available on `main` with two runtime units and
+one unified deployment unit:
 
 - `frontend/` provides direct Terminal (`/`) and application exec (`/exec`).
 - `controller/` owns the `Terminal` CRD and direct-session resources.
+- `deploy/` installs frontend and controller together through one Helm release
+  in `terminal-system`.
 - `sealos-tty-bridge` remains an external deployment used by `/exec`.
 - Helm bundles, health probes, values loading, runtime images, cluster images,
   OSS archives, and amd64-first CI are included.

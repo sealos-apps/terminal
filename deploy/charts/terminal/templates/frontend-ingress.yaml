@@ -4,7 +4,7 @@ metadata:
   name: {{ include "terminal-frontend.ingressName" . }}
   namespace: {{ .Release.Namespace }}
   annotations:
-    kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    kubernetes.io/ingress.class: {{ .Values.frontend.ingress.className | quote }}
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-origin: "{{ include "terminal-frontend.cloudOrigin" . }}, {{ include "terminal-frontend.wildcardCloudOrigin" . }}"
@@ -19,11 +19,11 @@ metadata:
     higress.io/response-header-control-update: |
       Content-Security-Policy "default-src * blob: data: *.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} {{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }}; img-src * data: blob: resource: *.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} {{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }}; connect-src * ws: wss: blob: resource:; style-src 'self' 'unsafe-inline' blob: *.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} {{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} resource:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: *.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} {{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} resource: *.baidu.com *.bdstatic.com; frame-src 'self' *.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} {{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }} mailto: tel: weixin: mtt: *.baidu.com; frame-ancestors 'self' {{ include "terminal-frontend.cloudOrigin" . }} {{ include "terminal-frontend.wildcardCloudOrigin" . }}"
       X-Xss-Protection "1; mode=block"
-    {{- with .Values.ingress.annotations }}
+    {{- with .Values.frontend.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className | quote }}
+  ingressClassName: {{ .Values.frontend.ingress.className | quote }}
   rules:
     - host: {{ include "terminal-frontend.host" . | quote }}
       http:
@@ -34,7 +34,7 @@ spec:
               service:
                 name: {{ include "terminal-frontend.fullname" . }}
                 port:
-                  number: {{ .Values.service.port }}
+                  number: {{ .Values.frontend.service.port }}
   {{- if not (eq (include "terminal-frontend.disableHttps" .) "true") }}
   tls:
     - hosts:

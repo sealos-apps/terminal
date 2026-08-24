@@ -2,17 +2,17 @@
 Expand the name of the chart.
 */}}
 {{- define "terminal.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default .Chart.Name .Values.controller.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
 {{- define "terminal.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- if .Values.controller.fullnameOverride }}
+{{- .Values.controller.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := default .Chart.Name .Values.controller.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -52,9 +52,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Create the name of the service account to use
 */}}
 {{- define "terminal.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "terminal.fullname" .) .Values.serviceAccount.name }}
+{{- if .Values.controller.serviceAccount.create }}
+{{- default (include "terminal.fullname" .) .Values.controller.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default "default" .Values.controller.serviceAccount.name }}
 {{- end }}
 {{- end }}

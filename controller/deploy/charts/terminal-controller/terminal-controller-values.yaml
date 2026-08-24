@@ -1,9 +1,0 @@
-# User-customizable values for the terminal controller deployment.
-
-replicaCount: 1
-
-config:
-  ingressTLSSecretName: "wildcard-cert-sealos"
-
-platform:
-  tlsRejectUnauthorized: "1"
