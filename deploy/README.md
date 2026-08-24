@@ -5,8 +5,8 @@ and controller. Both runtime components are installed by one release in the
 `terminal-system` namespace.
 
 ```bash
-sealos build -t ghcr.io/sealos-apps/terminal/cluster/terminal:latest -f Kubefile .
-sealos run ghcr.io/sealos-apps/terminal/cluster/terminal:latest
+sealos build -t ghcr.io/sealos-apps/terminal/terminal-cluster:latest -f Kubefile .
+sealos run ghcr.io/sealos-apps/terminal/terminal-cluster:latest
 ```
 
 The bundle entrypoint is `entrypoint.sh`. During migration it removes the old

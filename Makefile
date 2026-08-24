@@ -1,9 +1,9 @@
 SHELL := /usr/bin/env bash
 
 PLATFORM ?= linux/amd64
-FRONTEND_IMAGE ?= ghcr.io/sealos-apps/terminal/runtime/frontend:latest
-CONTROLLER_IMAGE ?= ghcr.io/sealos-apps/terminal/runtime/controller:latest
-SEALOS_TERMINAL_IMAGE ?= ghcr.io/sealos-apps/terminal/cluster/terminal:latest
+FRONTEND_IMAGE ?= ghcr.io/sealos-apps/terminal/terminal-frontend:latest
+CONTROLLER_IMAGE ?= ghcr.io/sealos-apps/terminal/terminal-controller:latest
+SEALOS_TERMINAL_IMAGE ?= ghcr.io/sealos-apps/terminal/terminal-cluster:latest
 
 .PHONY: frontend-install frontend-test frontend-build controller-test controller-build \
 	helm-lint helm-template frontend-image frontend-image-push controller-image \
