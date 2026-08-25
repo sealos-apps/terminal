@@ -22,8 +22,14 @@ cp config.example.json config.json
 pnpm dev
 ```
 
-The service listens on `http://localhost:3000` by default. `GET /healthz` and
-`GET /` return a JSON health response. The WebSocket endpoint is `GET /exec`.
+The example service listens on `http://localhost:3001` so it can run alongside
+the frontend's default `http://localhost:3000` origin. `GET /healthz` and `GET /`
+return a JSON health response. The WebSocket endpoint is `GET /exec`.
+
+The example leaves `KUBE_API_SERVER` unset, so the bridge uses the server from
+the kubeconfig supplied by each WebSocket client. Set it only when the bridge
+must override that server, or use the Helm chart's `kubeApiServer: auto` for an
+in-cluster deployment.
 
 ## Checks
 

@@ -14,7 +14,7 @@ pnpm add @labring/sealos-tty-client
 import { connectTerminalStreams } from '@labring/sealos-tty-client'
 
 const { stdout, stdin, resize } = await connectTerminalStreams({
-	client: { baseUrl: 'http://localhost:3000' },
+	client: { baseUrl: 'http://localhost:3001' },
 	connect: {
 		kubeconfig,
 		target: { namespace: 'default', pod: 'mypod', container: 'c1' },

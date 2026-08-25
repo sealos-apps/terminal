@@ -19,9 +19,9 @@ on:
         default: false
         type: boolean
       publish_arm64:
-        description: Explicitly publish linux/amd64 and linux/arm64 artifacts
+        description: Publish linux/arm64 artifacts (automatic releases always include ARM64)
         required: true
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -201,9 +201,11 @@ jobs:
       - name: Build and push runtime image
         env:
           RUNTIME_IMAGE: ${{ matrix.image }}:${{ needs.release-metadata.outputs.image_tag }}-amd64
+          PLATFORM: linux/amd64
         run: |
           set -euo pipefail
           docker build \
+            --platform "${PLATFORM}" \
             --tag "${RUNTIME_IMAGE}" \
             --file "${{ matrix.dockerfile }}" \
             --build-arg TARGETARCH=amd64 \
@@ -213,7 +215,7 @@ jobs:
   runtime_images_arm64:
     if: >-
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
-      inputs.publish_arm64 == true
+      (github.event_name == 'push' || inputs.publish_arm64 == true)
     runs-on: ubuntu-24.04-arm
     needs:
       - verify
@@ -258,9 +260,11 @@ jobs:
       - name: Build and push runtime image
         env:
           RUNTIME_IMAGE: ${{ matrix.image }}:${{ needs.release-metadata.outputs.image_tag }}-arm64
+          PLATFORM: linux/arm64
         run: |
           set -euo pipefail
           docker build \
+            --platform "${PLATFORM}" \
             --tag "${RUNTIME_IMAGE}" \
             --file "${{ matrix.dockerfile }}" \
             --build-arg TARGETARCH=arm64 \
@@ -292,7 +296,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
+          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}" "${TTY_BRIDGE_IMAGE}"; do
@@ -402,6 +406,7 @@ jobs:
           TTY_BRIDGE_RUNTIME_IMAGE: ${{ env.TTY_BRIDGE_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-amd64
           ARCH: amd64
+          PLATFORM: linux/amd64
           EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
           ARCHIVE_VERSION: ${{ needs.release-metadata.outputs.archive_version }}
         run: |
@@ -419,7 +424,7 @@ jobs:
           grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
-          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
+          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "${PLATFORM}" -f Kubefile .
           sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
           sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
           gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
@@ -441,7 +446,7 @@ jobs:
       - release-metadata
     if: >-
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
-      inputs.publish_arm64 == true
+      (github.event_name == 'push' || inputs.publish_arm64 == true)
     permissions:
       contents: read
       packages: write
@@ -472,6 +477,7 @@ jobs:
           TTY_BRIDGE_RUNTIME_IMAGE: ${{ env.TTY_BRIDGE_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-arm64
           ARCH: arm64
+          PLATFORM: linux/arm64
           EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
           ARCHIVE_VERSION: ${{ needs.release-metadata.outputs.archive_version }}
         run: |
@@ -489,7 +495,7 @@ jobs:
           grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
-          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
+          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "${PLATFORM}" -f Kubefile .
           sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
           sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
           gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
@@ -529,7 +535,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
+          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           sources=(
@@ -572,7 +578,7 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           OSS_PREFIX: ${{ needs.release-metadata.outputs.oss_prefix }}
-          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
+          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           : "${OSS_ENDPOINT:?OSS_ENDPOINT is required}"

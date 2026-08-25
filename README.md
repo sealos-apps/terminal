@@ -23,7 +23,7 @@ make controller-image PLATFORM=linux/amd64
 make tty-bridge-image PLATFORM=linux/amd64
 ```
 
-本地镜像目标通过 `PLATFORM` 构建单一可加载镜像；生产发布默认构建并发布 `linux/amd64`。手动工作流使用 `publish_images` 和 `upload_oss` 控制是否执行发布；只有显式设置 `publish_arm64=true` 才会额外发布 ARM 产物。
+本地镜像目标通过 `PLATFORM` 构建单一可加载镜像；生产发布默认构建并发布 `linux/amd64` 和 `linux/arm64`。手动工作流使用 `publish_images` 和 `upload_oss` 控制是否执行发布；手动选择 `publish_arm64=false` 时可仅发布 amd64 产物。
 
 更完整的部署和发布说明见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/runbook.md`](docs/runbook.md)。
 

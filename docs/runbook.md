@@ -9,11 +9,11 @@ The public runtime image names are:
 - `ghcr.io/sealos-apps/terminal/terminal-controller`
 - `ghcr.io/sealos-apps/terminal/terminal-cluster`
 
-The default production publishing target is `linux/amd64` on the native
-`ubuntu-24.04` runner. Main pushes use `sha-<7-char-sha>` image tags. Version
-tags use their `v*` tag, and only version tags update `latest`. ARM jobs are
-available only for a manual workflow run with `publish_arm64=true`; ordinary
-pushes and manual runs keep ARM disabled.
+The default production publishing targets are `linux/amd64` and `linux/arm64`.
+The amd64 jobs use the native `ubuntu-24.04` runner. Main pushes use
+`sha-<7-char-sha>` image tags. Version tags use their `v*` tag, and only version
+tags update `latest`. Automatic pushes always publish both architectures; a
+manual run can opt out of ARM64 with `publish_arm64=false`.
 
 ## Cluster Image Bundle
 
@@ -93,26 +93,29 @@ Main branch packages are uploaded to:
 
 ```text
 oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-amd64.tar.gz
+oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-arm64.tar.gz
 ```
 
 Version tags use the release path:
 
 ```text
 oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-amd64.tar.gz
+oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-arm64.tar.gz
 ```
 
 When a tag contains `/`, the workflow replaces `/` with `-` in archive
 filenames while preserving the original tag in the OSS release prefix.
 
-The amd64 archive has a matching `.md5` file. A manual run with
-`upload_oss=true` also enables the amd64 image publishing prerequisites. When
-`publish_arm64=true` is explicitly selected, the workflow also requires and
-uploads the arm64 archive and checksum.
+Each architecture archive has a matching `.md5` file. A manual run with
+`upload_oss=true` also enables the image publishing prerequisites. Automatic
+runs and manual runs with `publish_arm64=true` require and upload both
+architecture archives and checksums; an explicit `publish_arm64=false` manual
+run uploads only amd64.
 Manual runs that publish images or upload OSS must target `main` or a `v*` tag;
 publishing from another branch fails before the publishing jobs run.
 Missing OSS configuration or an incomplete artifact set fails the upload job
 instead of producing a green run without packages.
 
-Publishing fails when the amd64 build or archive is missing instead of producing
-a partial release. Runtime and cluster images are built on the native amd64
-runner.
+Publishing fails when a required architecture build or archive is missing
+instead of producing a partial release. Runtime and cluster images are built on
+native amd64 and arm64 runners.

@@ -107,6 +107,16 @@ jobs:
           grep -Fq 'https://terminal.example.com' /tmp/terminal-bridge-config.yaml
           ! grep -Fq 'WS_ALLOWED_ORIGINS": []' /tmp/terminal-bridge-config.yaml
           ! grep -Fq 'WS_ALLOWED_ORIGINS": ["*"]' /tmp/terminal-bridge-config.yaml
+      - name: Verify configurable bridge probe port
+        run: |
+          set -euo pipefail
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string ttyBridge.config.port=8080 \
+            --show-only templates/tty-bridge-deployment.yaml > /tmp/terminal-bridge-custom-port.yaml
+          grep -Fq 'containerPort: 8080' /tmp/terminal-bridge-custom-port.yaml
+          [[ "$(grep -Fc 'port: http' /tmp/terminal-bridge-custom-port.yaml)" -eq 3 ]]
       - name: Verify unified runtime image values
         run: |
           set -euo pipefail

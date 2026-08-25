@@ -1,9 +1,8 @@
 {
-	"PORT": 3000,
-	"KUBE_API_SERVER": "auto",
+	"PORT": 3001,
 	"WS_MAX_PAYLOAD_BYTES": 1048576,
 	"WS_HEARTBEAT_INTERVAL_MS": 30000,
 	"WS_AUTH_TIMEOUT_MS": 10000,
 	"WS_MAX_KUBECONFIG_BYTES": 262144,
-	"WS_ALLOWED_ORIGINS": ["https://terminal.example.com"]
+	"WS_ALLOWED_ORIGINS": ["http://localhost:3000"]
 }
