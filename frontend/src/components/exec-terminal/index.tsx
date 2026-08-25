@@ -9,7 +9,7 @@ type ExecTerminalProps = {
   namespace: string;
   pod: string;
   container?: string;
-  /** Base URL of the independently deployed sealos-tty-bridge service. */
+  /** Base URL of the Terminal release's tty-bridge service. */
   agentBaseUrl: string;
   /**
    * Optional. If provided, will be sent to the agent ticket request.

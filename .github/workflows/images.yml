@@ -18,6 +18,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_arm64:
+        description: Explicitly publish linux/amd64 and linux/arm64 artifacts
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -27,6 +32,7 @@ env:
   SEALOS_VERSION: v5.1.2-rc5
   FRONTEND_IMAGE: ghcr.io/sealos-apps/terminal/terminal-frontend
   CONTROLLER_IMAGE: ghcr.io/sealos-apps/terminal/terminal-controller
+  TTY_BRIDGE_IMAGE: ghcr.io/sealos-apps/terminal/terminal-tty-bridge
   CLUSTER_IMAGE: ghcr.io/sealos-apps/terminal/terminal-cluster
 
 concurrency:
@@ -90,6 +96,21 @@ jobs:
             exit 1
           fi
 
+  tty-bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tty-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable bridge toolchain
+        run: corepack enable && corepack prepare pnpm@9.15.9 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
   release-metadata:
     runs-on: ubuntu-latest
     outputs:
@@ -139,6 +160,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - verify
+      - tty-bridge
       - release-metadata
     permissions:
       contents: read
@@ -155,6 +177,10 @@ jobs:
             image: ghcr.io/sealos-apps/terminal/terminal-controller
             context: controller
             dockerfile: controller/Dockerfile
+          - component: tty-bridge
+            image: ghcr.io/sealos-apps/terminal/terminal-tty-bridge
+            context: tty-bridge
+            dockerfile: tty-bridge/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -185,10 +211,13 @@ jobs:
           docker push "${RUNTIME_IMAGE}"
 
   runtime_images_arm64:
-    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    if: >-
+      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
+      inputs.publish_arm64 == true
     runs-on: ubuntu-24.04-arm
     needs:
       - verify
+      - tty-bridge
       - release-metadata
     permissions:
       contents: read
@@ -205,6 +234,10 @@ jobs:
             image: ghcr.io/sealos-apps/terminal/terminal-controller
             context: controller
             dockerfile: controller/Dockerfile
+          - component: tty-bridge
+            image: ghcr.io/sealos-apps/terminal/terminal-tty-bridge
+            context: tty-bridge
+            dockerfile: tty-bridge/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -244,7 +277,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.runtime_images_amd64.result == 'success' &&
-      needs.runtime_images_arm64.result == 'success' &&
+      needs.runtime_images_arm64.result != 'failure' &&
       needs.release-metadata.result == 'success'
     permissions:
       contents: read
@@ -259,13 +292,16 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
+          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
         run: |
           set -euo pipefail
-          for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}"; do
+          for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}" "${TTY_BRIDGE_IMAGE}"; do
             sources=(
               "${image}:${IMAGE_TAG}-amd64"
-              "${image}:${IMAGE_TAG}-arm64"
             )
+            if [[ "${PUBLISH_ARM64}" == "true" ]]; then
+              sources+=("${image}:${IMAGE_TAG}-arm64")
+            fi
             docker manifest create "${image}:${IMAGE_TAG}" "${sources[@]}"
             docker manifest push "${image}:${IMAGE_TAG}"
             docker manifest inspect "${image}:${IMAGE_TAG}"
@@ -316,6 +352,19 @@ jobs:
         with:
           sarif_file: trivy-controller.sarif
           category: trivy-controller
+      - name: Scan TTY bridge image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.TTY_BRIDGE_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          format: sarif
+          output: trivy-tty-bridge.sarif
+          severity: CRITICAL,HIGH
+      - name: Upload TTY bridge scan
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-tty-bridge.sarif
+          category: trivy-tty-bridge
 
   cluster_images_amd64:
     runs-on: ubuntu-24.04
@@ -350,6 +399,7 @@ jobs:
         env:
           FRONTEND_RUNTIME_IMAGE: ${{ env.FRONTEND_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CONTROLLER_RUNTIME_IMAGE: ${{ env.CONTROLLER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          TTY_BRIDGE_RUNTIME_IMAGE: ${{ env.TTY_BRIDGE_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-amd64
           ARCH: amd64
           EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
@@ -363,8 +413,10 @@ jobs:
           chart_values="${GITHUB_WORKSPACE}/deploy/charts/terminal/values.yaml"
           sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-frontend.*;  image: ${FRONTEND_RUNTIME_IMAGE};" "${chart_values}"
           sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-controller.*;  image: ${CONTROLLER_RUNTIME_IMAGE};" "${chart_values}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-tty-bridge.*;  image: ${TTY_BRIDGE_RUNTIME_IMAGE};" "${chart_values}"
           grep -Fqx "  image: ${FRONTEND_RUNTIME_IMAGE}" <(sed -n '/^frontend:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           grep -Fqx "  image: ${CONTROLLER_RUNTIME_IMAGE}" <(sed -n '/^controller:/,/^cloudDomain:/{/^  image:/p;}' "${chart_values}")
+          grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
           sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
@@ -387,7 +439,9 @@ jobs:
     needs:
       - runtime-release
       - release-metadata
-    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
+    if: >-
+      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
+      inputs.publish_arm64 == true
     permissions:
       contents: read
       packages: write
@@ -415,6 +469,7 @@ jobs:
         env:
           FRONTEND_RUNTIME_IMAGE: ${{ env.FRONTEND_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CONTROLLER_RUNTIME_IMAGE: ${{ env.CONTROLLER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
+          TTY_BRIDGE_RUNTIME_IMAGE: ${{ env.TTY_BRIDGE_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}
           CLUSTER_RUNTIME_IMAGE: ${{ env.CLUSTER_IMAGE }}:${{ needs.release-metadata.outputs.image_tag }}-arm64
           ARCH: arm64
           EXPECTED_IMAGE_VERSION: ${{ needs.release-metadata.outputs.image_version }}
@@ -428,8 +483,10 @@ jobs:
           chart_values="${GITHUB_WORKSPACE}/deploy/charts/terminal/values.yaml"
           sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-frontend.*;  image: ${FRONTEND_RUNTIME_IMAGE};" "${chart_values}"
           sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-controller.*;  image: ${CONTROLLER_RUNTIME_IMAGE};" "${chart_values}"
+          sed -i -E "s;^  image: ghcr.io/sealos-apps/terminal/terminal-tty-bridge.*;  image: ${TTY_BRIDGE_RUNTIME_IMAGE};" "${chart_values}"
           grep -Fqx "  image: ${FRONTEND_RUNTIME_IMAGE}" <(sed -n '/^frontend:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           grep -Fqx "  image: ${CONTROLLER_RUNTIME_IMAGE}" <(sed -n '/^controller:/,/^cloudDomain:/{/^  image:/p;}' "${chart_values}")
+          grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
           sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "linux/${ARCH}" -f Kubefile .
@@ -457,7 +514,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      needs.cluster_images_arm64.result == 'success' &&
+      needs.cluster_images_arm64.result != 'failure' &&
       needs.release-metadata.result == 'success'
     permissions:
       contents: read
@@ -472,12 +529,15 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
+          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
         run: |
           set -euo pipefail
           sources=(
             "${CLUSTER_IMAGE}:${IMAGE_TAG}-amd64"
-            "${CLUSTER_IMAGE}:${IMAGE_TAG}-arm64"
           )
+          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
+            sources+=("${CLUSTER_IMAGE}:${IMAGE_TAG}-arm64")
+          fi
           docker manifest create "${CLUSTER_IMAGE}:${IMAGE_TAG}" "${sources[@]}"
           docker manifest push "${CLUSTER_IMAGE}:${IMAGE_TAG}"
           docker manifest inspect "${CLUSTER_IMAGE}:${IMAGE_TAG}"
@@ -497,7 +557,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      needs.cluster_images_arm64.result == 'success' &&
+      needs.cluster_images_arm64.result != 'failure' &&
       needs.release-metadata.result == 'success'
     steps:
       - uses: actions/download-artifact@v4
@@ -512,6 +572,7 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           OSS_PREFIX: ${{ needs.release-metadata.outputs.oss_prefix }}
+          PUBLISH_ARM64: ${{ inputs.publish_arm64 }}
         run: |
           set -euo pipefail
           : "${OSS_ENDPOINT:?OSS_ENDPOINT is required}"
@@ -523,7 +584,10 @@ jobs:
           shopt -s nullglob
           archives=(cluster-bundles/*.tar.gz)
           checksums=(cluster-bundles/*.md5)
-          expected_archives=2
+          expected_archives=1
+          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
+            expected_archives=2
+          fi
           [[ "${#archives[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster archives, found ${#archives[@]}" >&2; exit 1; }
           [[ "${#checksums[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster checksums, found ${#checksums[@]}" >&2; exit 1; }
           ls -lh "${archives[@]}" "${checksums[@]}"
@@ -533,8 +597,8 @@ jobs:
           command -v ossutil64
 
           for archive in "${archives[@]}"; do
-            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${archive}" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${archive}")"
+            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${archive%.tar.gz}.tar.gz" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${archive}")"
           done
           for checksum in "${checksums[@]}"; do
-            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${checksum}" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${checksum}")"
+            ossutil64 cp -f -e "${OSS_ENDPOINT}" -i "${OSS_ACCESS_KEY_ID}" -k "${OSS_ACCESS_KEY_SECRET}" "${checksum%.md5}.md5" "oss://${OSS_BUCKET}/${OSS_PREFIX}/$(basename "${checksum}")"
           done

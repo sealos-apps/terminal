@@ -41,6 +41,8 @@ frontend:
     certSecretName: "wildcard-cert"
     ttydImage: "docker.io/labring4docker/terminal:1.25.1-5"
     keepalived: "30m"
+    # Optional compatibility override for an externally deployed bridge. When
+    # empty, the unified chart derives the internal bridge's public origin.
     ttyAgentBaseUrl: ""
   affinity:
     podAntiAffinity:
@@ -54,6 +56,75 @@ frontend:
                   values:
                     - terminal-frontend
             topologyKey: "kubernetes.io/hostname"
+
+ttyBridge:
+  enabled: true
+  image: ghcr.io/sealos-apps/terminal/terminal-tty-bridge:latest
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  fullnameOverride: "terminal-tty-bridge"
+  replicaCount: 1
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - "ALL"
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    className: nginx
+    name: sealos-tty-bridge
+    host: ""
+    hostPrefix: tty-bridge
+    path: /
+    annotations: {}
+  config:
+    port: 3000
+    kubeApiServer: auto
+    wsMaxPayloadBytes: 1048576
+    wsHeartbeatIntervalMs: 30000
+    wsAuthTimeoutMs: 10000
+    wsMaxKubeconfigBytes: 262144
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 2
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 3000
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 30
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 controller:
   replicaCount: 1

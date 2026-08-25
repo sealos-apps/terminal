@@ -1,0 +1,18 @@
+{{- if .Values.ttyBridge.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "terminal-tty-bridge.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "terminal-tty-bridge.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ttyBridge.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.ttyBridge.service.port }}
+      targetPort: {{ .Values.ttyBridge.config.port }}
+      protocol: TCP
+  selector:
+    {{- include "terminal-tty-bridge.selectorLabels" . | nindent 4 }}
+{{- end }}

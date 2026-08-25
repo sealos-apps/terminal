@@ -1,0 +1,21 @@
+{{- if .Values.ttyBridge.enabled }}
+{{- $config := dict
+  "PORT" (.Values.ttyBridge.config.port | int)
+  "KUBE_API_SERVER" .Values.ttyBridge.config.kubeApiServer
+  "WS_MAX_PAYLOAD_BYTES" (.Values.ttyBridge.config.wsMaxPayloadBytes | int)
+  "WS_HEARTBEAT_INTERVAL_MS" (.Values.ttyBridge.config.wsHeartbeatIntervalMs | int)
+  "WS_AUTH_TIMEOUT_MS" (.Values.ttyBridge.config.wsAuthTimeoutMs | int)
+  "WS_MAX_KUBECONFIG_BYTES" (.Values.ttyBridge.config.wsMaxKubeconfigBytes | int)
+  "WS_ALLOWED_ORIGINS" (list (include "terminal-frontend.publicOrigin" .))
+-}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "terminal-tty-bridge.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "terminal-tty-bridge.labels" . | nindent 4 }}
+data:
+  config.json: |
+    {{- $config | toPrettyJson | nindent 4 }}
+{{- end }}

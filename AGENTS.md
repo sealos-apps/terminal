@@ -2,15 +2,17 @@
 
 ## Scope
 
-This repository owns the standalone Sealos Terminal frontend and the Terminal
-CRD controller. It is an application repository with two runtime units and one
-unified deployable unit.
+This repository owns the standalone Sealos Terminal frontend, the TTY bridge,
+and the Terminal CRD controller. It is an application repository with three
+runtime units and one unified deployable unit.
 
 ## Structure
 
 - `frontend/`: Next.js pages, `/api/apply`, and `/exec`.
+- `tty-bridge/`: Node HTTP/WebSocket gateway for authenticated Kubernetes
+  `pods/exec` sessions.
 - `controller/`: Go controller, `Terminal` CRD, RBAC, and health endpoints.
-- `deploy/`: unified Sealos bundle and Helm chart for frontend and controller.
+- `deploy/`: unified Sealos bundle and Helm chart for all three runtimes.
 - `docs/`: architecture, information architecture, references, and operations.
 - `PRODUCT.md`: product purpose, users, boundaries, and strategic principles.
 - `DESIGN.md`: current frontend visual system and UI guardrails.
@@ -22,8 +24,9 @@ unified deployable unit.
   repository's controller into a temporary Deployment, Service, and Ingress.
 - `/exec` receives `namespace`, `pod`, optional `container`, and optional
   `command`. It uses `@labring/sealos-tty-client` and
-  `TTY_AGENT_BASE_URL` to reach the separately deployed `sealos-tty-bridge`.
-- Do not copy the bridge source into this repository. Do not move Applaunchpad,
+  `TTY_AGENT_BASE_URL` to reach the independently running `tty-bridge` runtime.
+- `tty-bridge/` owns WebSocket upgrade, kubeconfig validation, resize/stream
+  handling, and Kubernetes `pods/exec`. Do not move Applaunchpad,
   DBProvider, or DevBox callers here. Those callers remain in the Sealos main
   repository.
 
@@ -52,6 +55,14 @@ make test
 make build TARGETARCH=amd64
 ```
 
+Bridge checks run from `tty-bridge/` with Node >=22 and pnpm 9.15.9:
+
+```bash
+corepack pnpm@9.15.9 install --frozen-lockfile
+corepack pnpm@9.15.9 test
+corepack pnpm@9.15.9 check
+```
+
 The unified Helm chart must pass `helm lint` and an HTTP-mode `helm template`
 render.
 
@@ -59,8 +70,8 @@ render.
 
 - Runtime and cluster images use the public `ghcr.io/sealos-apps/terminal`
   namespaces described in `docs/runbook.md`.
-- Build and publish both `linux/amd64` and `linux/arm64` by default. Architecture
-  coverage is not selectable in the publishing workflow.
+- Build and publish `linux/amd64` by default. Do not publish ARM images unless
+  the task explicitly requests ARM coverage.
 - CI cluster archives use repository variable `OSS_BUCKET` and secrets
   `OSS_ENDPOINT`, `OSS_ACCESS_KEY_ID`, and `OSS_ACCESS_KEY_SECRET`; missing OSS
   configuration must fail the publishing job.
@@ -69,6 +80,9 @@ render.
   original tag.
 - Keep `TTY_AGENT_BASE_URL` pointed at the bridge base URL, never at the
   Terminal frontend URL.
+- The unified chart derives the bridge URL and exact frontend Origin allowlist
+  from the effective Ingress host, scheme, and port. `frontend.terminalConfig.ttyAgentBaseUrl`
+  remains only as a compatibility override for an external bridge.
 - Cluster bundles load app values through `/root/.sealos/cloud/values/apps/`
   and source `/root/.sealos/cloud/scripts/tools.sh`.
 - Do not deploy to a cluster or modify a database as part of local verification

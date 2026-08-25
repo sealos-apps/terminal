@@ -99,7 +99,7 @@ export default function ExecPage(props: ServiceEnv) {
     return (
       <div className={styles.root}>
         <div className={styles.err}>
-          TTY agent is not configured. Set TTY_AGENT_BASE_URL to the sealos-tty-bridge URL.
+          TTY bridge is not configured. Set TTY_AGENT_BASE_URL to an external bridge URL when using a separate bridge deployment.
         </div>
       </div>
     );

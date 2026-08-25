@@ -1,0 +1,10 @@
+/node_modules/
+/.pnpm-store/
+/dist/
+/coverage/
+/.eslintcache
+*.tsbuildinfo
+config.json
+config.*.json
+!config.example.json
+*.log

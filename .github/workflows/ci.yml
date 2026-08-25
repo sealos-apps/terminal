@@ -50,6 +50,22 @@ jobs:
       - run: go test ./...
       - run: go build ./...
 
+  tty-bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tty-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable bridge toolchain
+        run: corepack enable && corepack prepare pnpm@9.15.9 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm check
+
   helm:
     runs-on: ubuntu-latest
     steps:
@@ -75,6 +91,22 @@ jobs:
             echo 'HTTP render contains an external HTTPS URL, port 443, or Ingress TLS.' >&2
             exit 1
           fi
+      - run: |
+          set -euo pipefail
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string global.http.domain=example.com \
+            --show-only templates/frontend-deployment.yaml > /tmp/terminal-frontend-auto.yaml
+          grep -Fq 'value: "https://tty-bridge.example.com"' /tmp/terminal-frontend-auto.yaml
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string global.http.domain=example.com \
+            --show-only templates/tty-bridge-configmap.yaml > /tmp/terminal-bridge-config.yaml
+          grep -Fq 'https://terminal.example.com' /tmp/terminal-bridge-config.yaml
+          ! grep -Fq 'WS_ALLOWED_ORIGINS": []' /tmp/terminal-bridge-config.yaml
+          ! grep -Fq 'WS_ALLOWED_ORIGINS": ["*"]' /tmp/terminal-bridge-config.yaml
       - name: Verify unified runtime image values
         run: |
           set -euo pipefail

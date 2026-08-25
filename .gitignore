@@ -1,10 +1,17 @@
 .DS_Store
 *.log
+.workflow/
 
 frontend/node_modules/
 frontend/.next/
 frontend/coverage/
 frontend/pnpm-debug.log*
+
+tty-bridge/node_modules/
+tty-bridge/dist/
+tty-bridge/.pnpm-store/
+tty-bridge/**/node_modules/
+tty-bridge/**/dist/
 
 controller/bin/
 controller/cover.out

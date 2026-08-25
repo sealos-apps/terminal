@@ -1,6 +1,6 @@
 apiVersion: v2
 name: terminal
-description: Sealos Terminal Frontend and Controller Helm Chart
+description: Sealos Terminal Frontend, TTY Bridge, and Controller Helm Chart
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "latest"

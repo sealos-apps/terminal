@@ -1,0 +1,79 @@
+{{- if .Values.ttyBridge.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "terminal-tty-bridge.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "terminal-tty-bridge.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ttyBridge.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "terminal-tty-bridge.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        {{- include "terminal-tty-bridge.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/tty-bridge-configmap.yaml") . | sha256sum }}
+        {{- with .Values.ttyBridge.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.ttyBridge.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.ttyBridge.podSecurityContext | nindent 8 }}
+      containers:
+        - name: tty-bridge
+          image: {{ .Values.ttyBridge.image | quote }}
+          imagePullPolicy: {{ .Values.ttyBridge.imagePullPolicy }}
+          securityContext:
+            {{- toYaml .Values.ttyBridge.securityContext | nindent 12 }}
+          env:
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: {{ .Values.platform.tlsRejectUnauthorized | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ttyBridge.config.port }}
+              protocol: TCP
+          startupProbe:
+            {{- toYaml .Values.ttyBridge.startupProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.ttyBridge.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.ttyBridge.livenessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.ttyBridge.resources | nindent 12 }}
+          volumeMounts:
+            - name: tty-bridge-config
+              mountPath: /app/config.json
+              subPath: config.json
+              readOnly: true
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.ttyBridge.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ttyBridge.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ttyBridge.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: tty-bridge-config
+          configMap:
+            name: {{ include "terminal-tty-bridge.configMapName" . }}
+{{- end }}
