@@ -6,8 +6,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "terminal-tty-bridge.labels" . | nindent 4 }}
-    helm.sh/hook: test
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   restartPolicy: Never
   containers:
