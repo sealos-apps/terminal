@@ -18,11 +18,6 @@ on:
         required: true
         default: false
         type: boolean
-      publish_arm64:
-        description: Publish linux/arm64 artifacts (automatic releases always include ARM64)
-        required: true
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -213,9 +208,7 @@ jobs:
           docker push "${RUNTIME_IMAGE}"
 
   runtime_images_arm64:
-    if: >-
-      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
-      (github.event_name == 'push' || inputs.publish_arm64 == true)
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
     runs-on: ubuntu-24.04-arm
     needs:
       - verify
@@ -281,7 +274,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.runtime_images_amd64.result == 'success' &&
-      needs.runtime_images_arm64.result != 'failure' &&
+      needs.runtime_images_arm64.result == 'success' &&
       needs.release-metadata.result == 'success'
     permissions:
       contents: read
@@ -296,16 +289,13 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
-          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}" "${TTY_BRIDGE_IMAGE}"; do
             sources=(
               "${image}:${IMAGE_TAG}-amd64"
+              "${image}:${IMAGE_TAG}-arm64"
             )
-            if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-              sources+=("${image}:${IMAGE_TAG}-arm64")
-            fi
             docker manifest create "${image}:${IMAGE_TAG}" "${sources[@]}"
             docker manifest push "${image}:${IMAGE_TAG}"
             docker manifest inspect "${image}:${IMAGE_TAG}"
@@ -444,9 +434,7 @@ jobs:
     needs:
       - runtime-release
       - release-metadata
-    if: >-
-      (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
-      (github.event_name == 'push' || inputs.publish_arm64 == true)
+    if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
     permissions:
       contents: read
       packages: write
@@ -520,7 +508,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      needs.cluster_images_arm64.result != 'failure' &&
+      needs.cluster_images_arm64.result == 'success' &&
       needs.release-metadata.result == 'success'
     permissions:
       contents: read
@@ -535,15 +523,12 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.release-metadata.outputs.image_tag }}
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
-          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           sources=(
             "${CLUSTER_IMAGE}:${IMAGE_TAG}-amd64"
+            "${CLUSTER_IMAGE}:${IMAGE_TAG}-arm64"
           )
-          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-            sources+=("${CLUSTER_IMAGE}:${IMAGE_TAG}-arm64")
-          fi
           docker manifest create "${CLUSTER_IMAGE}:${IMAGE_TAG}" "${sources[@]}"
           docker manifest push "${CLUSTER_IMAGE}:${IMAGE_TAG}"
           docker manifest inspect "${CLUSTER_IMAGE}:${IMAGE_TAG}"
@@ -563,7 +548,7 @@ jobs:
       always() &&
       (github.event_name == 'push' || inputs.upload_oss == true) &&
       needs.cluster_images_amd64.result == 'success' &&
-      needs.cluster_images_arm64.result != 'failure' &&
+      needs.cluster_images_arm64.result == 'success' &&
       needs.release-metadata.result == 'success'
     steps:
       - uses: actions/download-artifact@v4
@@ -578,7 +563,6 @@ jobs:
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_BUCKET: ${{ vars.OSS_BUCKET }}
           OSS_PREFIX: ${{ needs.release-metadata.outputs.oss_prefix }}
-          PUBLISH_ARM64: ${{ github.event_name == 'push' || inputs.publish_arm64 == true }}
         run: |
           set -euo pipefail
           : "${OSS_ENDPOINT:?OSS_ENDPOINT is required}"
@@ -590,10 +574,7 @@ jobs:
           shopt -s nullglob
           archives=(cluster-bundles/*.tar.gz)
           checksums=(cluster-bundles/*.md5)
-          expected_archives=1
-          if [[ "${PUBLISH_ARM64}" == "true" ]]; then
-            expected_archives=2
-          fi
+          expected_archives=2
           [[ "${#archives[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster archives, found ${#archives[@]}" >&2; exit 1; }
           [[ "${#checksums[@]}" -eq "${expected_archives}" ]] || { echo "Expected ${expected_archives} cluster checksums, found ${#checksums[@]}" >&2; exit 1; }
           ls -lh "${archives[@]}" "${checksums[@]}"

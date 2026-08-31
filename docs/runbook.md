@@ -9,11 +9,10 @@ The public runtime image names are:
 - `ghcr.io/sealos-apps/terminal/terminal-controller`
 - `ghcr.io/sealos-apps/terminal/terminal-cluster`
 
-The default production publishing targets are `linux/amd64` and `linux/arm64`.
-The amd64 jobs use the native `ubuntu-24.04` runner. Main pushes use
-`sha-<7-char-sha>` image tags. Version tags use their `v*` tag, and only version
-tags update `latest`. Automatic pushes always publish both architectures; a
-manual run can opt out of ARM64 with `publish_arm64=false`.
+Production publishing targets are `linux/amd64` and `linux/arm64`. The amd64
+jobs use the native `ubuntu-24.04` runner. Main pushes use `sha-<7-char-sha>`
+image tags. Version tags use their `v*` tag, and only version tags update
+`latest`. Automatic and manual publishing always publish both architectures.
 
 ## Cluster Image Bundle
 
@@ -107,10 +106,8 @@ When a tag contains `/`, the workflow replaces `/` with `-` in archive
 filenames while preserving the original tag in the OSS release prefix.
 
 Each architecture archive has a matching `.md5` file. A manual run with
-`upload_oss=true` also enables the image publishing prerequisites. Automatic
-runs and manual runs with `publish_arm64=true` require and upload both
-architecture archives and checksums; an explicit `publish_arm64=false` manual
-run uploads only amd64.
+`upload_oss=true` also enables the image publishing prerequisites. Every
+publishing run requires and uploads both architecture archives and checksums.
 Manual runs that publish images or upload OSS must target `main` or a `v*` tag;
 publishing from another branch fails before the publishing jobs run.
 Missing OSS configuration or an incomplete artifact set fails the upload job

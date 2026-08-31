@@ -70,8 +70,8 @@ render.
 
 - Runtime and cluster images use the public `ghcr.io/sealos-apps/terminal`
   namespaces described in `docs/runbook.md`.
-- Build and publish `linux/amd64` and `linux/arm64` by default for production
-  images and archives. A manual workflow may explicitly opt out of ARM64.
+- Build and publish `linux/amd64` and `linux/arm64` for all production images
+  and archives. Manual publishing uses the same two-architecture contract.
 - CI cluster archives use repository variable `OSS_BUCKET` and secrets
   `OSS_ENDPOINT`, `OSS_ACCESS_KEY_ID`, and `OSS_ACCESS_KEY_SECRET`; missing OSS
   configuration must fail the publishing job.
