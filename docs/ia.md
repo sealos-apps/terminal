@@ -20,6 +20,10 @@ Terminal controller
 ├── Ingress           Temporary user-facing terminal URL
 ├── /healthz          Controller liveness endpoint
 └── /readyz           Controller readiness endpoint
+
+TTY bridge
+├── /healthz          Bridge liveness/readiness endpoint
+└── /exec             WebSocket Kubernetes Pod exec endpoint
 ```
 
 ## Entry Points
@@ -43,9 +47,10 @@ An owning application opens `/exec` with query parameters:
 - `command` or `cmd`: one command string or a JSON/string array, optional.
 
 The page reads `TTY_AGENT_BASE_URL` from `/api/env`, obtains the current
-session kubeconfig, and mounts the xterm runtime. The runtime connects to the
-external bridge, forwards stdin and resize events, renders stdout, and exposes
-retry behavior when the stream ends or fails.
+session kubeconfig, and mounts the xterm runtime. The unified chart normally
+generates that URL from the bridge Ingress. The runtime connects to the bridge,
+forwards stdin and resize events, renders stdout, and exposes retry behavior
+when the stream ends or fails.
 
 ## Component Ownership
 
@@ -79,6 +84,6 @@ opened.
 ## Cross-Repository Navigation
 
 Application buttons and their query construction remain in the Sealos main
-repository. The bridge URL and WebSocket execution details remain in the
-standalone `sealos-tty-bridge` service. Changes to those contracts must update
-the owning repository and this document together.
+repository. The bridge URL and WebSocket execution details are owned by
+`tty-bridge/` and its unified chart. Changes to those contracts must update the
+owning repository and this document together.

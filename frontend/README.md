@@ -3,7 +3,7 @@
 This Next.js application provides both Terminal workflows:
 
 - `/`: creates a temporary Terminal workload through `/api/apply` and embeds its ttyd session.
-- `/exec`: connects to an existing workload Pod through the independently deployed `sealos-tty-bridge`.
+- `/exec`: connects to an existing workload Pod through the Terminal release's `tty-bridge` runtime.
 
 ## Local development
 
@@ -12,7 +12,7 @@ pnpm install
 pnpm dev
 ```
 
-The `/exec` workflow requires `TTY_AGENT_BASE_URL` to point to the bridge base URL. The published TTY client adds the bridge execution path when opening the WebSocket.
+The unified Helm chart injects `TTY_AGENT_BASE_URL` from the bridge Ingress. The published TTY client adds the bridge execution path when opening the WebSocket.
 
 ## Build
 

@@ -1,8 +1,8 @@
 # Sealos Terminal deployment
 
-The deployment bundle contains one Helm chart for both the Terminal frontend
-and controller. Both runtime components are installed by one release in the
-`terminal-system` namespace.
+The deployment bundle contains one Helm chart for the Terminal frontend,
+TTY bridge, and controller. All runtime components are installed by one release
+in the `terminal-system` namespace.
 
 ```bash
 sealos build -t ghcr.io/sealos-apps/terminal/terminal-cluster:latest -f Kubefile .
@@ -22,5 +22,7 @@ Runtime values are loaded from:
 
 If only the legacy `terminal-frontend` and `terminal-controller` values
 directories exist, the entrypoint maps their values into the unified schema.
-Set `frontend.terminalConfig.ttyAgentBaseUrl` or `TTY_AGENT_BASE_URL` to the
-base URL of the separately deployed `sealos-tty-bridge` when `/exec` is used.
+The chart derives the public bridge URL and the exact frontend Origin allowlist
+from the effective domain, ports, and Ingress hosts. `frontend.terminalConfig.ttyAgentBaseUrl`
+and `TTY_AGENT_BASE_URL` remain optional compatibility overrides for an external
+bridge; they are not required for the integrated runtime.

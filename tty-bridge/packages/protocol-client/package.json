@@ -1,0 +1,55 @@
+{
+	"name": "@labring/sealos-tty-client",
+	"type": "module",
+	"version": "0.1.1",
+	"description": "Web Streams API client for sealos-tty-bridge (Kubernetes exec terminal over WebSocket).",
+	"author": {
+		"name": "Sealos",
+		"url": "https://sealos.io"
+	},
+	"maintainers": [
+		"Nixieboluo"
+	],
+	"license": "MIT",
+	"homepage": "https://github.com/labring/sealos-tty-bridge/tree/main/packages/protocol-client#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/labring-sigs/sealos-tty-bridge.git",
+		"directory": "packages/protocol-client"
+	},
+	"bugs": {
+		"url": "https://github.com/labring-sigs/sealos-tty-bridge/issues"
+	},
+	"keywords": [
+		"kubernetes",
+		"exec",
+		"terminal",
+		"pty",
+		"websocket",
+		"web-streams",
+		"xterm",
+		"sealos"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"prepack": "pnpm run build",
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc -p tsconfig.json"
+	},
+	"dependencies": {
+		"zod": "^4.3.6"
+	}
+}

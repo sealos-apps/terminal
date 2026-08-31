@@ -119,6 +119,11 @@ Optional ":port" suffix for desktop-facing URLs.
 {{- include "terminal-frontend.scheme" . }}://{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }}
 {{- end }}
 
+{{/* Origin used by browsers and the bridge's exact WebSocket Origin allowlist. */}}
+{{- define "terminal-frontend.publicOrigin" -}}
+{{- include "terminal-frontend.scheme" . }}://{{ include "terminal-frontend.host" . }}{{ include "terminal-frontend.portSuffix" . }}
+{{- end }}
+
 {{- define "terminal-frontend.wildcardCloudOrigin" -}}
 {{- include "terminal-frontend.scheme" . }}://*.{{ include "terminal-frontend.cloudDomain" . }}{{ include "terminal-frontend.portSuffix" . }}
 {{- end }}

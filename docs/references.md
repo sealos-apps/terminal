@@ -21,9 +21,8 @@ define the Terminal contract.
 
 - [Sealos main](https://github.com/labring/sealos): owns application callers
   such as Applaunchpad, DBProvider, and DevBox.
-- [sealos-tty-bridge](https://github.com/labring-sigs/sealos-tty-bridge): owns
-  the WebSocket-to-Kubernetes `pods/exec` bridge, its authentication and its
-  deployment lifecycle.
+- [sealos-tty-bridge](https://github.com/labring-sigs/sealos-tty-bridge): upstream
+  source and protocol reference for the copied `tty-bridge/` runtime.
 - [sealos-apps/terminal](https://github.com/sealos-apps/terminal): this
   standalone repository.
 
@@ -35,6 +34,10 @@ define the Terminal contract.
   Sealos desktop session and app integration types.
 - [`@labring/sealos-tty-client`](https://www.npmjs.com/package/@labring/sealos-tty-client):
   frontend client used to open bridge terminal streams.
+
+The local `tty-bridge/` directory owns the integrated WebSocket server,
+kubeconfig validation, session lifecycle, and its Node runtime dependencies.
+The root Helm chart owns its Service, Ingress, ConfigMap, probes, and image.
 
 The frontend consumes published npm packages. It must not reintroduce local
 workspace links for these dependencies without an explicit ownership decision.

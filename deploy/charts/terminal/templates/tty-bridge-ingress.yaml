@@ -1,0 +1,36 @@
+{{- if and .Values.ttyBridge.enabled .Values.ttyBridge.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "terminal-tty-bridge.ingressName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "terminal-tty-bridge.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ttyBridge.ingress.className | quote }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    {{- with .Values.ttyBridge.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ttyBridge.ingress.className | quote }}
+  rules:
+    - host: {{ include "terminal-tty-bridge.host" . | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ttyBridge.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "terminal-tty-bridge.fullname" . }}
+                port:
+                  number: {{ .Values.ttyBridge.service.port }}
+  {{- if not (eq (include "terminal-frontend.disableHttps" .) "true") }}
+  tls:
+    - hosts:
+        - {{ include "terminal-tty-bridge.host" . | quote }}
+      secretName: {{ include "terminal-frontend.certSecretName" . | quote }}
+  {{- end }}
+{{- end }}

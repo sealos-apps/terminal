@@ -18,16 +18,17 @@ makes connection failure or session exit obvious.
 ## Product Purpose
 
 Sealos Terminal provides two terminal entry points behind one unified
-deployable product:
+deployable product. The product contains three runtime units:
 
 1. The direct `/` workflow creates a short-lived Terminal workload and embeds
    its ttyd session.
 2. The application `/exec` workflow connects to an existing workload through
-   `sealos-tty-bridge` and Kubernetes `pods/exec`.
+   the repository's independent `tty-bridge` runtime and Kubernetes `pods/exec`.
 
 Success means a user can reach the intended shell without understanding the
 controller or bridge internals, while operators can deploy, upgrade, health
-check, and roll back the frontend and controller together through one release.
+check, and roll back the frontend, tty-bridge, and controller together through
+one release.
 
 ## Brand Personality
 

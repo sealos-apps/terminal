@@ -2,16 +2,16 @@
 
 ## Current Baseline
 
-The standalone repository is available on `main` with two runtime units and
+The standalone repository is available on `main` with three runtime units and
 one unified deployment unit:
 
 - `frontend/` provides direct Terminal (`/`) and application exec (`/exec`).
+- `tty-bridge/` owns the WebSocket-to-Kubernetes `pods/exec` gateway.
 - `controller/` owns the `Terminal` CRD and direct-session resources.
-- `deploy/` installs frontend and controller together through one Helm release
-  in `terminal-system`.
-- `sealos-tty-bridge` remains an external deployment used by `/exec`.
-- Helm bundles, health probes, values loading, runtime images, cluster images,
-  OSS archives, and dual-architecture CI are included.
+- `deploy/` installs frontend, tty-bridge, and controller together through one
+  Helm release in `terminal-system`.
+- Helm bundles, health probes, automatic bridge URL and Origin configuration,
+  values loading, runtime images, cluster images, and OSS archives are included.
 
 ## Next
 
@@ -21,11 +21,11 @@ Update the Sealos main repository's Applaunchpad, DBProvider, and DevBox
 callers to use the standalone frontend `/exec` contract. This work belongs to
 the Sealos main repository and is intentionally outside this repository.
 
-### Deploy and Accept the Bridge Contract
+### Accept the Integrated Bridge Contract
 
-Deploy `sealos-tty-bridge`, configure `terminalConfig.ttyAgentBaseUrl`, and
-perform live acceptance for namespace, Pod, container, command, resize,
-reconnect, authorization failure, and bridge-unavailable states.
+Perform live acceptance for the integrated bridge: namespace, Pod, container,
+command, resize, reconnect, authorization failure, Origin rejection, and
+bridge-unavailable states.
 
 ### Expand Runtime Coverage
 
@@ -50,7 +50,6 @@ reconnect, authorization failure, and bridge-unavailable states.
 
 ## Non-goals
 
-- Copying `sealos-tty-bridge` source into this repository.
 - Moving application callers out of the Sealos main repository.
 - Replacing the direct `/` Terminal CRD workflow with `/exec`.
 - Introducing database state into the standalone Terminal service.

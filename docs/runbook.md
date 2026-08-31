@@ -5,19 +5,18 @@
 The public runtime image names are:
 
 - `ghcr.io/sealos-apps/terminal/terminal-frontend`
+- `ghcr.io/sealos-apps/terminal/terminal-tty-bridge`
 - `ghcr.io/sealos-apps/terminal/terminal-controller`
 - `ghcr.io/sealos-apps/terminal/terminal-cluster`
 
-The GitHub Actions workflow always builds both `linux/amd64` on the native
-`ubuntu-24.04` runner and `linux/arm64` on the native `ubuntu-24.04-arm` runner
-for publishing. Main pushes use `sha-<7-char-sha>` image tags. Version tags use
-their `v*` tag, and only version tags update `latest`. Both cases publish
-multi-architecture manifests. The workflow does not use QEMU or buildx for
-cross-architecture compilation.
+Production publishing targets are `linux/amd64` and `linux/arm64`. The amd64
+jobs use the native `ubuntu-24.04` runner. Main pushes use `sha-<7-char-sha>`
+image tags. Version tags use their `v*` tag, and only version tags update
+`latest`. Automatic and manual publishing always publish both architectures.
 
 ## Cluster Image Bundle
 
-Frontend and controller are installed together by one Sealos bundle:
+Frontend, tty-bridge, and controller are installed together by one Sealos bundle:
 
 ```bash
 make terminal-deploy-bundle
@@ -26,7 +25,8 @@ make terminal-deploy-bundle
 The bundle uses `deploy/entrypoint.sh`, sources
 `/root/.sealos/cloud/scripts/tools.sh`, reads runtime values from
 `sealos-system/sealos-config` and `cert-config`, and passes them to Helm.
-User overrides are loaded in stable filename order from:
+The generated `terminal-values.yaml` is loaded first; additional user
+overrides are then loaded in stable filename order from:
 
 ```text
 /root/.sealos/cloud/values/apps/terminal/*-values.yaml
@@ -52,17 +52,19 @@ Ingress TLS is omitted when `disableHttps=true`.
 
 ## Application Terminal
 
-Set the bridge base URL in the frontend chart values:
+The chart automatically derives the bridge base URL from the bridge Ingress and
+injects it as `TTY_AGENT_BASE_URL`. With the default hosts this is
+`https://tty-bridge.<cloudDomain>`, while the frontend Origin allowlist contains
+only `https://terminal.<cloudDomain>`. HTTP mode derives matching `http://`
+origins and omits TLS.
 
-```yaml
-frontend:
-  terminalConfig:
-    ttyAgentBaseUrl: https://tty-bridge.example.com
-```
+For migration from an independently deployed bridge, set
+`frontend.terminalConfig.ttyAgentBaseUrl` or `TTY_AGENT_BASE_URL`; the override
+is optional and must point to the bridge, never the Terminal frontend.
 
-The value is injected as `TTY_AGENT_BASE_URL`. An empty value intentionally
-causes `/exec` to show a configuration error instead of connecting to the
-Terminal frontend or guessing a bridge address.
+The bridge accepts the user's kubeconfig for each WebSocket session, validates
+it, and performs `pods/exec` with that identity. Keep the bridge behind HTTPS/WSS
+and do not log or persist kubeconfig contents.
 
 ## CI Archive Upload
 
@@ -90,28 +92,28 @@ Configure these repository secrets:
 Main branch packages are uploaded to:
 
 ```text
-oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-<arch>.tar.gz
+oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-amd64.tar.gz
+oss://<OSS_BUCKET>/ci/main/<7-char-sha>/terminal-cluster-main-<7-char-sha>-arm64.tar.gz
 ```
 
 Version tags use the release path:
 
 ```text
-oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-<arch>.tar.gz
+oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-amd64.tar.gz
+oss://<OSS_BUCKET>/release/<tag>/terminal-cluster-<tag>-<7-char-sha>-arm64.tar.gz
 ```
 
 When a tag contains `/`, the workflow replaces `/` with `-` in archive
 filenames while preserving the original tag in the OSS release prefix.
 
-Every architecture archive has a matching `.md5` file, so a complete upload
-contains two archives and two checksums. Pushes to `main` and `v*` tags upload
-both architectures automatically. A manual run with `upload_oss=true` also
-enables the image publishing prerequisites and publishes both architectures.
+Each architecture archive has a matching `.md5` file. A manual run with
+`upload_oss=true` also enables the image publishing prerequisites. Every
+publishing run requires and uploads both architecture archives and checksums.
 Manual runs that publish images or upload OSS must target `main` or a `v*` tag;
 publishing from another branch fails before the publishing jobs run.
 Missing OSS configuration or an incomplete artifact set fails the upload job
 instead of producing a green run without packages.
 
-Publishing fails when either architecture build or archive is missing instead
-of producing a partial release. Runtime and cluster images are built on the
-native ARM64 runner, and manifests are combined with Docker's native
-`docker manifest` commands.
+Publishing fails when a required architecture build or archive is missing
+instead of producing a partial release. Runtime and cluster images are built on
+native amd64 and arm64 runners.

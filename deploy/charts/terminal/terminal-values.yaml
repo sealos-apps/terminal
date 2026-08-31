@@ -1,4 +1,6 @@
-# Default values for the unified Sealos Terminal chart.
+# Default application values for the unified Sealos Terminal deployment.
+# Runtime image references stay in values.yaml so the cluster package can pin
+# each release image without being overridden by this application file.
 
 frontend:
   replicaCount: 1
@@ -27,6 +29,58 @@ frontend:
                   values:
                     - terminal-frontend
             topologyKey: "kubernetes.io/hostname"
+
+ttyBridge:
+  enabled: true
+  replicaCount: 1
+  podAnnotations: {}
+  podLabels: {}
+  ingress:
+    enabled: true
+    className: nginx
+    name: sealos-tty-bridge
+    host: ""
+    hostPrefix: tty-bridge
+    path: /
+    annotations: {}
+  config:
+    port: 3000
+    kubeApiServer: auto
+    wsMaxPayloadBytes: 1048576
+    wsHeartbeatIntervalMs: 30000
+    wsAuthTimeoutMs: 10000
+    wsMaxKubeconfigBytes: 262144
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 2
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 30
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 controller:
   replicaCount: 1
