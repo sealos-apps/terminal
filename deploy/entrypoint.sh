@@ -117,6 +117,22 @@ merge_values_files() {
   mv "${merged_file}" "${target_file}"
 }
 
+build_values_args() {
+  local app_values_dir="$1"
+  local default_app_values_file="${app_values_dir}/${SERVICE_NAME}-values.yaml"
+
+  VALUES_ARGS=()
+  if [[ -f "${default_app_values_file}" ]]; then
+    VALUES_ARGS+=(--values "${default_app_values_file}")
+  fi
+  for values_file in "${USER_VALUES_FILES[@]}"; do
+    if [[ "${values_file}" == "${default_app_values_file}" ]]; then
+      continue
+    fi
+    VALUES_ARGS+=(--values "${values_file}")
+  done
+}
+
 prepare_values() {
   local app_values_dir="/root/.sealos/cloud/values/apps/${SERVICE_NAME}"
   local default_values_file="${CHART_PATH}/${SERVICE_NAME}-values.yaml"
@@ -130,10 +146,7 @@ prepare_values() {
   mkdir -p "${app_values_dir}"
   mapfile -t USER_VALUES_FILES < <(find "${app_values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print | LC_ALL=C sort)
   if (( ${#USER_VALUES_FILES[@]} > 0 )); then
-    VALUES_ARGS=()
-    for values_file in "${USER_VALUES_FILES[@]}"; do
-      VALUES_ARGS+=(--values "${values_file}")
-    done
+    build_values_args "${app_values_dir}"
     return
   fi
 
@@ -163,10 +176,7 @@ prepare_values() {
   fi
 
   mapfile -t USER_VALUES_FILES < <(find "${app_values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print | LC_ALL=C sort)
-  VALUES_ARGS=()
-  for values_file in "${USER_VALUES_FILES[@]}"; do
-    VALUES_ARGS+=(--values "${values_file}")
-  done
+  build_values_args "${app_values_dir}"
 }
 
 backup_release "${OLD_FRONTEND_RELEASE}" "${OLD_FRONTEND_NAMESPACE}" frontend-legacy
