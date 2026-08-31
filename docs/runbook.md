@@ -25,7 +25,8 @@ make terminal-deploy-bundle
 The bundle uses `deploy/entrypoint.sh`, sources
 `/root/.sealos/cloud/scripts/tools.sh`, reads runtime values from
 `sealos-system/sealos-config` and `cert-config`, and passes them to Helm.
-User overrides are loaded in stable filename order from:
+The generated `terminal-values.yaml` is loaded first; additional user
+overrides are then loaded in stable filename order from:
 
 ```text
 /root/.sealos/cloud/values/apps/terminal/*-values.yaml
