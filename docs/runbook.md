@@ -25,19 +25,23 @@ make terminal-deploy-bundle
 The bundle uses `deploy/entrypoint.sh`, sources
 `/root/.sealos/cloud/scripts/tools.sh`, reads runtime values from
 `sealos-system/sealos-config` and `cert-config`, and passes them to Helm.
-The generated `terminal-values.yaml` is loaded first; additional user
-overrides are then loaded in stable filename order from:
+When present, the generated `terminal-values.yaml` is loaded first; additional
+user overrides are then loaded in stable filename order from:
 
 ```text
 /root/.sealos/cloud/values/apps/terminal/*-values.yaml
 ```
 
 The release name is `terminal` and the namespace is `terminal-system`. During
-migration, the entrypoint backs up and removes the old frontend release and
-legacy controller release before installing the unified chart. The Terminal
-CRD and existing Terminal CRs are retained. When the unified values directory
-has no values file, the entrypoint migrates legacy values when available or
-copies `terminal-values.yaml` from the chart.
+migration, the entrypoint removes the old frontend release and a non-unified
+`terminal` release before installing the unified chart. The Terminal CRD and
+existing Terminal CRs are retained. Before preparing values, an upgrade from
+an existing `terminal-0.1.0` chart removes only
+`/root/.sealos/cloud/values/apps/terminal/terminal-values.yaml`. This
+compatibility cleanup preserves all other user `*-values.yaml` overrides. If
+it removes the only values file, the upgrade uses the chart's built-in defaults
+without recreating that persistent file. In all other cases, an empty unified
+values directory receives `terminal-values.yaml` from the chart.
 
 ## HTTP and Certificates
 

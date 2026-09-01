@@ -9,7 +9,7 @@ SEALOS_TERMINAL_IMAGE ?= ghcr.io/sealos-apps/terminal/terminal-cluster:latest
 .PHONY: frontend-install frontend-test frontend-build controller-test controller-build \
 	helm-lint helm-template frontend-image frontend-image-push controller-image \
 	controller-image-push tty-bridge-install tty-bridge-check tty-bridge-image \
-	tty-bridge-image-push terminal-deploy-bundle ci
+	tty-bridge-image-push terminal-deploy-bundle deploy-test ci
 
 frontend-install:
 	cd frontend && pnpm install --frozen-lockfile
@@ -45,6 +45,9 @@ helm-template:
 		--set-string global.http.domain=terminal.example.com \
 		--set-string global.http.httpPort=80 >/dev/null
 
+deploy-test:
+	bash deploy/test-entrypoint.sh
+
 frontend-image:
 	docker buildx build --platform=$(PLATFORM) --load \
 		-t $(FRONTEND_IMAGE) -f frontend/Dockerfile frontend
@@ -74,4 +77,4 @@ tty-bridge-image-push:
 terminal-deploy-bundle:
 	cd deploy && sealos build -t $(SEALOS_TERMINAL_IMAGE) -f Kubefile .
 
-ci: frontend-test frontend-build controller-test controller-build tty-bridge-check helm-lint helm-template
+ci: frontend-test frontend-build controller-test controller-build tty-bridge-check helm-lint helm-template deploy-test
