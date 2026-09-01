@@ -13,6 +13,7 @@ OLD_FRONTEND_NAMESPACE=${OLD_FRONTEND_NAMESPACE:-terminal-frontend}
 
 HELM_SET_ARGS=()
 VALUES_ARGS=()
+LEGACY_DEFAULT_VALUES_REMOVED=false
 add_set_string() {
   local key="$1"
   local value="$2"
@@ -63,6 +64,27 @@ uninstall_release() {
   fi
 }
 
+is_terminal_chart_v010() {
+  local releases
+
+  releases="$(helm list \
+    -n "${RELEASE_NAMESPACE}" \
+    --filter "^${RELEASE_NAME}$" \
+    --output json 2>/dev/null)" || return 1
+
+  [[ "${releases}" =~ \"chart\"[[:space:]]*:[[:space:]]*\"${SERVICE_NAME}-0\.1\.0\" ]]
+}
+
+remove_terminal_v010_values_file() {
+  local values_file="/root/.sealos/cloud/values/apps/${SERVICE_NAME}/${SERVICE_NAME}-values.yaml"
+
+  if is_terminal_chart_v010 && [[ -f "${values_file}" ]]; then
+    echo "Removing legacy Terminal values file ${values_file} for chart ${SERVICE_NAME}-0.1.0..."
+    rm -f -- "${values_file}"
+    LEGACY_DEFAULT_VALUES_REMOVED=true
+  fi
+}
+
 collect_values_files() {
   local values_dir="$1"
   local values_file
@@ -95,13 +117,17 @@ prepare_values() {
 
   collect_values_files "${app_values_dir}"
   if (( ${#VALUES_FILES[@]} == 0 )); then
-    echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) has no *-values.yaml; copying default *-values.yaml from ${default_values_file}."
-    cp "${default_values_file}" "${default_app_values_file}"
-    collect_values_files "${app_values_dir}"
+    if [[ "${LEGACY_DEFAULT_VALUES_REMOVED}" == true ]]; then
+      echo "INFO: Legacy Terminal values were removed; using chart defaults without recreating ${default_app_values_file}."
+    else
+      echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) has no *-values.yaml; copying default *-values.yaml from ${default_values_file}."
+      cp "${default_values_file}" "${default_app_values_file}"
+      collect_values_files "${app_values_dir}"
+    fi
   fi
 
-  # Keep generated defaults at the lowest precedence, then apply user values
-  # files in deterministic filename order.
+  # When present, generated defaults have the lowest precedence. User values
+  # files are then applied in deterministic filename order.
   VALUES_ARGS=()
   if [[ -f "${default_app_values_file}" ]]; then
     VALUES_ARGS+=(--values "${default_app_values_file}")
@@ -113,6 +139,8 @@ prepare_values() {
     VALUES_ARGS+=(--values "${values_file}")
   done
 }
+
+remove_terminal_v010_values_file
 
 if helm status "${RELEASE_NAME}" -n "${RELEASE_NAMESPACE}" >/dev/null 2>&1 && ! is_unified_release; then
   uninstall_release "${RELEASE_NAME}" "${RELEASE_NAMESPACE}"
