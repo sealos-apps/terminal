@@ -67,8 +67,6 @@ uninstall_release() {
 prepare_values() {
   local app_values_dir="/root/.sealos/cloud/values/apps/${SERVICE_NAME}"
   local default_values_file="${CHART_PATH}/${SERVICE_NAME}-values.yaml"
-  local legacy_frontend_dir="/root/.sealos/cloud/values/apps/terminal-frontend"
-  local legacy_controller_dir="/root/.sealos/cloud/values/apps/terminal-controller"
   local migration_file
   local mapped_file
   local values_file
