@@ -19,13 +19,13 @@ data:
       resourceName: 50686b4e.sealos.io
   config.yaml: |
     global:
-      cloudDomain: {{ .Values.controller.config.cloudDomain | quote }}
-      {{- if .Values.controller.config.cloudPort }}
-      cloudPort: {{ .Values.controller.config.cloudPort | quote }}
+      cloudDomain: {{ .Values.cloudDomain | quote }}
+      {{- if .Values.cloudPort }}
+      cloudPort: {{ .Values.cloudPort | quote }}
       {{- end }}
-      {{- if .Values.controller.config.httpPort }}
-      httpPort: {{ .Values.controller.config.httpPort | quote }}
+      {{- if .Values.httpPort }}
+      httpPort: {{ .Values.httpPort | quote }}
       {{- end }}
-      disableHttps: {{ .Values.controller.config.disableHttps }}
+      disableHttps: {{ .Values.disableHttps }}
     terminalController:
-      ingressTLSSecretName: {{ default .Values.controller.config.ingressTLSSecretName .Values.controller.config.certSecretName | quote }}
+      ingressTLSSecretName: {{ default .Values.certSecretName | quote }}

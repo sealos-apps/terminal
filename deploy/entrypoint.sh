@@ -10,15 +10,9 @@ HELM_OPTS=${HELM_OPTS:-}
 SERVICE_NAME=terminal
 OLD_FRONTEND_RELEASE=${OLD_FRONTEND_RELEASE:-terminal-frontend}
 OLD_FRONTEND_NAMESPACE=${OLD_FRONTEND_NAMESPACE:-terminal-frontend}
-BACKUP_ENABLED=${TERMINAL_BACKUP_ENABLED:-true}
-BACKUP_DIR=${TERMINAL_BACKUP_DIR:-/tmp/sealos-backup/terminal-migration}
-
-HELM_OPTS_ARGS=()
-if [[ -n "${HELM_OPTS}" ]]; then
-  read -r -a HELM_OPTS_ARGS <<<"${HELM_OPTS}"
-fi
 
 HELM_SET_ARGS=()
+VALUES_ARGS=()
 add_set_string() {
   local key="$1"
   local value="$2"
@@ -46,30 +40,12 @@ fi
 add_set_string frontend.terminalConfig.ttydImage "${ttydImage:-}"
 add_set_string frontend.terminalConfig.keepalived "${keepalived:-}"
 add_set_string frontend.terminalConfig.ttyAgentBaseUrl "${TTY_AGENT_BASE_URL:-${ttyAgentBaseUrl:-}}"
-add_set_string global.http.domain "${SEALOS_CLOUD_DOMAIN}"
-add_set_string global.http.httpsPort "${SEALOS_CLOUD_PORT}"
-add_set_string global.http.httpPort "${SEALOS_HTTP_PORT}"
-add_set_string global.http.disableHttps "${SEALOS_DISABLE_HTTPS}"
-add_set_string global.http.certSecretName "${SEALOS_CERT_SECRET_NAME}"
-add_set_string controller.config.cloudDomain "${SEALOS_CLOUD_DOMAIN}"
-add_set_string controller.config.cloudPort "${SEALOS_CLOUD_PORT}"
-add_set_string controller.config.httpPort "${SEALOS_HTTP_PORT}"
-add_set_string controller.config.disableHttps "${SEALOS_DISABLE_HTTPS}"
-add_set_string controller.config.certSecretName "${SEALOS_CERT_SECRET_NAME}"
+add_set_string cloudDomain "${SEALOS_CLOUD_DOMAIN}"
+add_set_string cloudPort "${SEALOS_CLOUD_PORT}"
+add_set_string httpPort "${SEALOS_HTTP_PORT}"
+add_set_string disableHttps "${SEALOS_DISABLE_HTTPS}"
+add_set_string certSecretName "${SEALOS_CERT_SECRET_NAME}"
 HELM_SET_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
-
-backup_release() {
-  local release_name="$1"
-  local namespace="$2"
-  local prefix="$3"
-
-  [[ "${BACKUP_ENABLED}" == true ]] || return
-  helm status "${release_name}" -n "${namespace}" >/dev/null 2>&1 || return
-
-  mkdir -p "${BACKUP_DIR}"
-  helm get values "${release_name}" -n "${namespace}" --all >"${BACKUP_DIR}/${prefix}-values.yaml" || true
-  helm get manifest "${release_name}" -n "${namespace}" >"${BACKUP_DIR}/${prefix}-manifest.yaml" || true
-}
 
 is_unified_release() {
   local values
@@ -87,45 +63,50 @@ uninstall_release() {
   fi
 }
 
-migrate_values_file() {
-  local source_file="$1"
-  local component="$2"
-  local output_file="$3"
-  local expression
+collect_values_files() {
+  local values_dir="$1"
+  local values_file
 
-  if [[ "${component}" == frontend ]]; then
-    expression='. as $root | {"frontend": ($root | del(.global, .platform)), "global": ($root.global // {}), "platform": ($root.platform // {})}'
-  else
-    expression='. as $root | {"controller": ($root | del(.platform)), "platform": ($root.platform // {})}'
-  fi
-
-  yq eval "${expression}" "${source_file}" >"${output_file}"
+  VALUES_FILES=()
+  while IFS= read -r values_file; do
+    VALUES_FILES+=("${values_file}")
+  done < <(
+    find "${values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print |
+      LC_ALL=C sort
+  )
 }
 
-merge_values_files() {
-  local source_file="$1"
-  local target_file="$2"
-  local merged_file
-
-  if [[ ! -s "${target_file}" ]]; then
-    cp "${source_file}" "${target_file}"
-    return
-  fi
-
-  merged_file="$(mktemp)"
-  yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "${target_file}" "${source_file}" >"${merged_file}"
-  mv "${merged_file}" "${target_file}"
-}
-
-build_values_args() {
-  local app_values_dir="$1"
+prepare_values() {
+  local app_values_dir="/root/.sealos/cloud/values/apps/${SERVICE_NAME}"
+  local default_values_file="${CHART_PATH}/${SERVICE_NAME}-values.yaml"
   local default_app_values_file="${app_values_dir}/${SERVICE_NAME}-values.yaml"
+  local values_file
 
+  if [[ ! -f "${default_values_file}" ]]; then
+    echo "ERROR: Default values file ${default_values_file} not found." >&2
+    exit 1
+  fi
+
+  if [[ ! -d "${app_values_dir}" ]]; then
+    echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) missing; copying default *-values.yaml from ${default_values_file}."
+    mkdir -p "${app_values_dir}"
+    cp "${default_values_file}" "${default_app_values_file}"
+  fi
+
+  collect_values_files "${app_values_dir}"
+  if (( ${#VALUES_FILES[@]} == 0 )); then
+    echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) has no *-values.yaml; copying default *-values.yaml from ${default_values_file}."
+    cp "${default_values_file}" "${default_app_values_file}"
+    collect_values_files "${app_values_dir}"
+  fi
+
+  # Keep generated defaults at the lowest precedence, then apply user values
+  # files in deterministic filename order.
   VALUES_ARGS=()
   if [[ -f "${default_app_values_file}" ]]; then
     VALUES_ARGS+=(--values "${default_app_values_file}")
   fi
-  for values_file in "${USER_VALUES_FILES[@]}"; do
+  for values_file in "${VALUES_FILES[@]}"; do
     if [[ "${values_file}" == "${default_app_values_file}" ]]; then
       continue
     fi
@@ -133,55 +114,7 @@ build_values_args() {
   done
 }
 
-prepare_values() {
-  local app_values_dir="/root/.sealos/cloud/values/apps/${SERVICE_NAME}"
-  local default_values_file="${CHART_PATH}/${SERVICE_NAME}-values.yaml"
-  local legacy_frontend_dir="/root/.sealos/cloud/values/apps/terminal-frontend"
-  local legacy_controller_dir="/root/.sealos/cloud/values/apps/terminal-controller"
-  local migration_file
-  local mapped_file
-  local values_file
-  local legacy_values=()
-
-  mkdir -p "${app_values_dir}"
-  mapfile -t USER_VALUES_FILES < <(find "${app_values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print | LC_ALL=C sort)
-  if (( ${#USER_VALUES_FILES[@]} > 0 )); then
-    build_values_args "${app_values_dir}"
-    return
-  fi
-
-  mapfile -t legacy_values < <(
-    find "${legacy_frontend_dir}" "${legacy_controller_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print 2>/dev/null | LC_ALL=C sort
-  )
-  if (( ${#legacy_values[@]} == 0 )); then
-    echo "WARN: /root/.sealos/cloud/values/apps/terminal has no values file; copying default values from ${default_values_file}."
-    cp "${default_values_file}" "${app_values_dir}/${SERVICE_NAME}-values.yaml"
-  else
-    command -v yq >/dev/null 2>&1 || {
-      echo "ERROR: yq is required to migrate legacy Terminal values." >&2
-      exit 1
-    }
-    migration_file="${app_values_dir}/${SERVICE_NAME}-migrated-values.yaml"
-    : >"${migration_file}"
-    for values_file in "${legacy_values[@]}"; do
-      mapped_file="$(mktemp)"
-      if [[ "${values_file}" == "${legacy_frontend_dir}"/* ]]; then
-        migrate_values_file "${values_file}" frontend "${mapped_file}"
-      else
-        migrate_values_file "${values_file}" controller "${mapped_file}"
-      fi
-      merge_values_files "${mapped_file}" "${migration_file}"
-      rm -f "${mapped_file}"
-    done
-  fi
-
-  mapfile -t USER_VALUES_FILES < <(find "${app_values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print | LC_ALL=C sort)
-  build_values_args "${app_values_dir}"
-}
-
-backup_release "${OLD_FRONTEND_RELEASE}" "${OLD_FRONTEND_NAMESPACE}" frontend-legacy
 if helm status "${RELEASE_NAME}" -n "${RELEASE_NAMESPACE}" >/dev/null 2>&1 && ! is_unified_release; then
-  backup_release "${RELEASE_NAME}" "${RELEASE_NAMESPACE}" controller-legacy
   uninstall_release "${RELEASE_NAME}" "${RELEASE_NAMESPACE}"
 fi
 uninstall_release "${OLD_FRONTEND_RELEASE}" "${OLD_FRONTEND_NAMESPACE}"
@@ -196,5 +129,4 @@ helm upgrade -i "${RELEASE_NAME}" \
   --atomic \
   "${CHART_PATH}" \
   "${VALUES_ARGS[@]}" \
-  "${HELM_SET_ARGS[@]}" \
-  "${HELM_OPTS_ARGS[@]}"
+  "${HELM_SET_ARGS[@]}"

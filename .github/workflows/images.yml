@@ -82,9 +82,9 @@ jobs:
           helm template terminal deploy/charts/terminal \
             --namespace terminal-system \
             --values deploy/charts/terminal/terminal-values.yaml \
-            --set-string global.http.disableHttps=true \
-            --set-string global.http.domain=terminal.example.com \
-            --set-string global.http.httpPort=80 >/tmp/terminal-http.yaml
+            --set-string disableHttps=true \
+            --set-string cloudDomain=terminal.example.com \
+            --set-string httpPort=80 >/tmp/terminal-http.yaml
           if grep -E 'https://|:443|^  tls:' /tmp/terminal-http.yaml | \
             grep -Ev 'https://[^[:space:]" ]+\.svc\.cluster\.local(:[0-9]+)?/'; then
             echo 'HTTP render contains an external HTTPS URL, port 443, or Ingress TLS.' >&2

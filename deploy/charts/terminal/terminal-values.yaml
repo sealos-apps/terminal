@@ -2,6 +2,12 @@
 # Runtime image references stay in values.yaml so the cluster package can pin
 # each release image without being overridden by this application file.
 
+cloudDomain: 127.0.0.1.nip.io
+cloudPort: ""
+httpPort: ""
+disableHttps: false
+certSecretName: wildcard-cert
+
 frontend:
   replicaCount: 1
   podAnnotations: {}
@@ -16,6 +22,8 @@ frontend:
   terminalConfig:
     ttydImage: "docker.io/labring4docker/terminal:1.25.1-5"
     keepalived: "30m"
+    # Optional compatibility override for an externally deployed bridge. When
+    # empty, the unified chart derives the internal bridge's public origin.
     ttyAgentBaseUrl: ""
   affinity:
     podAntiAffinity:
@@ -37,12 +45,6 @@ ttyBridge:
   podLabels: {}
   ingress:
     enabled: true
-    className: nginx
-    name: sealos-tty-bridge
-    host: ""
-    hostPrefix: tty-bridge
-    path: /
-    annotations: {}
   config:
     port: 3000
     kubeApiServer: auto
@@ -119,7 +121,6 @@ controller:
   nodeSelector: {}
   tolerations: []
   affinity: {}
-
 
 platform:
   tlsRejectUnauthorized: "1"

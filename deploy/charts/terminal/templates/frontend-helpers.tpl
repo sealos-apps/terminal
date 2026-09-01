@@ -61,29 +61,23 @@ Return the effective global HTTP value, falling back to the legacy
 terminalConfig field for direct chart users and older values files.
 */}}
 {{- define "terminal-frontend.cloudDomain" -}}
-{{- default (default .Values.frontend.terminalConfig.cloudDomain .Values.cloudDomain) .Values.global.http.domain -}}
+{{- default  .Values.cloudDomain -}}
 {{- end }}
 
 {{- define "terminal-frontend.cloudPort" -}}
-{{- default (default .Values.frontend.terminalConfig.cloudPort .Values.cloudPort) .Values.global.http.httpsPort -}}
+{{- default .Values.cloudPort -}}
 {{- end }}
 
 {{- define "terminal-frontend.httpPort" -}}
-{{- default (default .Values.frontend.terminalConfig.httpPort .Values.httpPort) .Values.global.http.httpPort -}}
+{{- default .Values.httpPort -}}
 {{- end }}
 
 {{- define "terminal-frontend.disableHttps" -}}
-{{- if ne (toString .Values.global.http.disableHttps) "" -}}
-{{- toString .Values.global.http.disableHttps -}}
-{{- else if ne (toString .Values.disableHttps) "" -}}
 {{- toString .Values.disableHttps -}}
-{{- else -}}
-{{- toString .Values.frontend.terminalConfig.disableHttps -}}
-{{- end -}}
 {{- end }}
 
 {{- define "terminal-frontend.certSecretName" -}}
-{{- default (default .Values.frontend.terminalConfig.certSecretName .Values.certSecretName) .Values.global.http.certSecretName -}}
+{{- default  .Values.certSecretName -}}
 {{- end }}
 
 {{/* HTTP scheme for desktop-facing URLs. */}}
