@@ -12,6 +12,7 @@ OLD_FRONTEND_RELEASE=${OLD_FRONTEND_RELEASE:-terminal-frontend}
 OLD_FRONTEND_NAMESPACE=${OLD_FRONTEND_NAMESPACE:-terminal-frontend}
 
 HELM_SET_ARGS=()
+VALUES_ARGS=()
 add_set_string() {
   local key="$1"
   local value="$2"
@@ -62,27 +63,55 @@ uninstall_release() {
   fi
 }
 
+collect_values_files() {
+  local values_dir="$1"
+  local values_file
 
+  VALUES_FILES=()
+  while IFS= read -r values_file; do
+    VALUES_FILES+=("${values_file}")
+  done < <(
+    find "${values_dir}" -maxdepth 1 -type f -name '*-values.yaml' -print |
+      LC_ALL=C sort
+  )
+}
 
 prepare_values() {
   local app_values_dir="/root/.sealos/cloud/values/apps/${SERVICE_NAME}"
   local default_values_file="${CHART_PATH}/${SERVICE_NAME}-values.yaml"
-  local migration_file
-  local mapped_file
+  local default_app_values_file="${app_values_dir}/${SERVICE_NAME}-values.yaml"
   local values_file
-  local legacy_values=()
-
-  mkdir -p "${app_values_dir}"
 
   if [[ ! -f "${default_values_file}" ]]; then
     echo "ERROR: Default values file ${default_values_file} not found." >&2
     exit 1
   fi
 
-  if [[ ! -f "${app_values_dir}/${SERVICE_NAME}-values.yaml" ]]; then
-    echo "WARN: ${app_values_dir}/${SERVICE_NAME}-values.yaml not found; copying default values from ${default_values_file}."
-    cp "${default_values_file}" "${app_values_dir}/${SERVICE_NAME}-values.yaml"
+  if [[ ! -d "${app_values_dir}" ]]; then
+    echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) missing; copying default *-values.yaml from ${default_values_file}."
+    mkdir -p "${app_values_dir}"
+    cp "${default_values_file}" "${default_app_values_file}"
   fi
+
+  collect_values_files "${app_values_dir}"
+  if (( ${#VALUES_FILES[@]} == 0 )); then
+    echo "WARN: /root/.sealos/cloud/values/apps/${SERVICE_NAME}/ (${app_values_dir}) has no *-values.yaml; copying default *-values.yaml from ${default_values_file}."
+    cp "${default_values_file}" "${default_app_values_file}"
+    collect_values_files "${app_values_dir}"
+  fi
+
+  # Keep generated defaults at the lowest precedence, then apply user values
+  # files in deterministic filename order.
+  VALUES_ARGS=()
+  if [[ -f "${default_app_values_file}" ]]; then
+    VALUES_ARGS+=(--values "${default_app_values_file}")
+  fi
+  for values_file in "${VALUES_FILES[@]}"; do
+    if [[ "${values_file}" == "${default_app_values_file}" ]]; then
+      continue
+    fi
+    VALUES_ARGS+=(--values "${values_file}")
+  done
 }
 
 if helm status "${RELEASE_NAME}" -n "${RELEASE_NAMESPACE}" >/dev/null 2>&1 && ! is_unified_release; then
@@ -99,4 +128,5 @@ helm upgrade -i "${RELEASE_NAME}" \
   --wait \
   --atomic \
   "${CHART_PATH}" \
+  "${VALUES_ARGS[@]}" \
   "${HELM_SET_ARGS[@]}"
