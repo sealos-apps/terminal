@@ -34,11 +34,6 @@ frontend:
     host: ""
     annotations: {}
   terminalConfig:
-    cloudDomain: "127.0.0.1.nip.io"
-    cloudPort: ""
-    httpPort: ""
-    disableHttps: false
-    certSecretName: "wildcard-cert"
     ttydImage: "docker.io/labring4docker/terminal:1.25.1-5"
     keepalived: "30m"
     # Optional compatibility override for an externally deployed bridge. When
@@ -155,13 +150,6 @@ controller:
     requests:
       cpu: 10m
       memory: 64Mi
-  config:
-    cloudDomain: "cloud.sealos.io"
-    cloudPort: ""
-    httpPort: ""
-    disableHttps: false
-    certSecretName: ""
-    ingressTLSSecretName: "wildcard-cert-sealos"
   livenessProbe:
     httpGet:
       path: /healthz
@@ -196,14 +184,6 @@ cloudPort: ""
 httpPort: ""
 disableHttps: ""
 certSecretName: ""
-
-global:
-  http:
-    domain: ""
-    httpsPort: ""
-    httpPort: ""
-    disableHttps: ""
-    certSecretName: ""
 
 platform:
   tlsRejectUnauthorized: "1"
