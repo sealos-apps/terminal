@@ -147,6 +147,7 @@ if helm status "${RELEASE_NAME}" -n "${RELEASE_NAMESPACE}" >/dev/null 2>&1 && ! 
 fi
 uninstall_release "${OLD_FRONTEND_RELEASE}" "${OLD_FRONTEND_NAMESPACE}"
 kubectl delete namespace "${OLD_FRONTEND_NAMESPACE}" --ignore-not-found
+kubectl delete app -n app-system terminal   --ignore-not-found
 
 prepare_values
 
