@@ -146,6 +146,7 @@ if helm status "${RELEASE_NAME}" -n "${RELEASE_NAMESPACE}" >/dev/null 2>&1 && ! 
   uninstall_release "${RELEASE_NAME}" "${RELEASE_NAMESPACE}"
 fi
 uninstall_release "${OLD_FRONTEND_RELEASE}" "${OLD_FRONTEND_NAMESPACE}"
+kubectl delete namespace "${OLD_FRONTEND_NAMESPACE}" --ignore-not-found
 
 prepare_values
 
