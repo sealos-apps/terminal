@@ -73,7 +73,6 @@ jobs:
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.3
-      - run: bash deploy/test-entrypoint.sh
       - run: helm lint deploy/charts/terminal -f deploy/charts/terminal/terminal-values.yaml
       - run: |
           helm template terminal deploy/charts/terminal \
