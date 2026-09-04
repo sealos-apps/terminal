@@ -4,13 +4,13 @@ metadata:
   labels:
     control-plane: controller-manager
     {{- include "terminal.labels" . | nindent 4 }}
-  name: {{ include "terminal.fullname" . }}-controller-manager-metrics-service
+  name: {{ include "terminal.fullname" . }}-controller-manager-health-service
   namespace: {{ .Release.Namespace }}
 spec:
   ports:
-  - name: https
-    port: {{ .Values.controller.service.metrics.port }}
+  - name: http
+    port: {{ .Values.controller.service.health.port }}
     protocol: TCP
-    targetPort: https
+    targetPort: health
   selector:
     control-plane: controller-manager

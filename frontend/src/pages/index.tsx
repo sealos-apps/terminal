@@ -1,7 +1,7 @@
 import Terminal from '@/components/terminal';
 import request from '@/service/request';
 import useSessionStore from '@/store/session';
-import { Box, Flex, Spinner, useToast } from '@chakra-ui/react';
+import { Box, Button, Flex, Spinner, useToast } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import styles from './index.module.scss';
@@ -13,11 +13,25 @@ type ServiceEnv = {
   site: string;
 };
 
+type MasterRpcError = {
+  success?: unknown;
+  message?: unknown;
+};
+
+const isLegacyQuotaRpcUnsupported = (error: unknown): error is MasterRpcError => {
+  if (!error || typeof error !== 'object') return false;
+
+  const { success, message } = error as MasterRpcError;
+  return success === false && message === 'function is not declare';
+};
+
 export default function Index(props: ServiceEnv) {
   const { isUserLogin, session } = useSessionStore();
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [quotaCheckPassed, setQuotaCheckPassed] = useState(false);
+  const [quotaCheckError, setQuotaCheckError] = useState(false);
+  const [quotaCheckAttempt, setQuotaCheckAttempt] = useState(0);
   const quotaCheckTriggered = useRef(false);
 
   const toast = useToast();
@@ -46,9 +60,23 @@ export default function Index(props: ServiceEnv) {
   useEffect(() => {
     if (envQuerySuccess && session?.user && !quotaCheckTriggered.current) {
       quotaCheckTriggered.current = true;
-      triggerQuotaCheck();
+      void triggerQuotaCheck().catch((error) => {
+        if (isLegacyQuotaRpcUnsupported(error)) {
+          setQuotaCheckPassed(true);
+          return;
+        }
+
+        setQuotaCheckError(true);
+      });
     }
-  }, [envQuerySuccess, session, triggerQuotaCheck]);
+  }, [envQuerySuccess, quotaCheckAttempt, session, triggerQuotaCheck]);
+
+  const retryQuotaCheck = () => {
+    quotaCheckTriggered.current = false;
+    setQuotaCheckPassed(false);
+    setQuotaCheckError(false);
+    setQuotaCheckAttempt((attempt) => attempt + 1);
+  };
 
   useQuery(['applyApp'], () => request.post('/api/apply'), {
     onSuccess: (res) => {
@@ -87,6 +115,21 @@ export default function Index(props: ServiceEnv) {
     refetchInterval: url === '' ? 500 : false,
     enabled: quotaCheckPassed
   });
+
+  if (quotaCheckError) {
+    return (
+      <Flex w="100%" h="100%" color="white" bg="#2b2b2b" overflow={'hidden'} position={'relative'}>
+        <Box w="100%" backgroundColor={'#2b2b2b'} position={'relative'}>
+          <Box position={'absolute'} top="50%" left={'50%'} transform={'translate(-50%, -50%)'}>
+            <Box mb={3}>Unable to verify workspace quota.</Box>
+            <Button size="sm" colorScheme="gray" variant="solid" onClick={retryQuotaCheck}>
+              Retry
+            </Button>
+          </Box>
+        </Box>
+      </Flex>
+    );
+  }
 
   if (isLoading) {
     return (

@@ -37,6 +37,13 @@ renders the returned domain in an iframe. The direct session supports multiple
 tabs and forwards the current namespace and optional command to the ttyd
 iframe.
 
+Before creating a direct Terminal, the page checks the workspace quota through
+the Desktop RPC. Older Desktop releases that explicitly return
+`{ success: false, message: 'function is not declare' }` for that RPC are
+treated as compatible and continue to `/api/apply`. Other quota-check failures
+block creation and show a retry action so a transient platform failure cannot
+silently bypass the guard.
+
 ### Application Terminal: `/exec`
 
 An owning application opens `/exec` with query parameters:
@@ -71,6 +78,11 @@ only in-surface navigation is the direct-session tab list and the retry action
 for ended or failed `/exec` sessions.
 
 ## State Model
+
+The direct `/` runtime waits for the environment and Desktop session, then
+checks workspace quota before calling `/api/apply`. A legacy missing-quota-RPC
+response proceeds normally. Any other quota-check error enters a retryable
+error state and does not create a `Terminal` resource.
 
 The `/exec` runtime uses these visible phases:
 

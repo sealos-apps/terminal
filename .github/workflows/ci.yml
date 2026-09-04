@@ -117,6 +117,33 @@ jobs:
             --show-only templates/tty-bridge-deployment.yaml > /tmp/terminal-bridge-custom-port.yaml
           grep -Fq 'containerPort: 8080' /tmp/terminal-bridge-custom-port.yaml
           [[ "$(grep -Fc 'port: http' /tmp/terminal-bridge-custom-port.yaml)" -eq 3 ]]
+      - name: Verify controller Helm health test
+        run: |
+          set -euo pipefail
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --show-only templates/controller-service.yaml \
+            --show-only templates/controller-test-health.yaml > /tmp/terminal-controller-health.yaml
+          grep -Fq 'name: terminal-controller-manager-health-service' /tmp/terminal-controller-health.yaml
+          grep -Fq 'targetPort: health' /tmp/terminal-controller-health.yaml
+          grep -Fq 'http://terminal-controller-manager-health-service.terminal-system.svc.cluster.local:8081/readyz' /tmp/terminal-controller-health.yaml
+          ! grep -Fq '/metrics' /tmp/terminal-controller-health.yaml
+      - name: Verify configurable controller health port
+        run: |
+          set -euo pipefail
+          helm template terminal deploy/charts/terminal \
+            --namespace terminal-system \
+            --values deploy/charts/terminal/terminal-values.yaml \
+            --set-string controller.service.health.port=18081 \
+            --show-only templates/controller-deployment.yaml \
+            --show-only templates/controller-service.yaml \
+            --show-only templates/controller-test-health.yaml > /tmp/terminal-controller-custom-health-port.yaml
+          grep -Fq -- '--health-probe-bind-address=:18081' /tmp/terminal-controller-custom-health-port.yaml
+          grep -Fq 'containerPort: 18081' /tmp/terminal-controller-custom-health-port.yaml
+          grep -Fq 'targetPort: health' /tmp/terminal-controller-custom-health-port.yaml
+          [[ "$(grep -Fc 'port: health' /tmp/terminal-controller-custom-health-port.yaml)" -eq 3 ]]
+          grep -Fq 'http://terminal-controller-manager-health-service.terminal-system.svc.cluster.local:18081/readyz' /tmp/terminal-controller-custom-health-port.yaml
       - name: Verify unified runtime image values
         run: |
           set -euo pipefail
