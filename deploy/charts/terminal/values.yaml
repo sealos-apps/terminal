@@ -141,8 +141,8 @@ controller:
     allowPrivilegeEscalation: false
     runAsNonRoot: true
   service:
-    metrics:
-      port: 8443
+    health:
+      port: 8081
   resources:
     limits:
       cpu: 500m

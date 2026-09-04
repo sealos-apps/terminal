@@ -18,5 +18,4 @@ spec:
         - --fail
         - --silent
         - --show-error
-        - --insecure
-        - "https://{{ include "terminal.fullname" . }}-controller-manager-metrics-service.{{ .Release.Namespace }}.svc.cluster.local:8443/metrics"
+        - "http://{{ include "terminal.fullname" . }}-controller-manager-health-service.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.controller.service.health.port }}/readyz"

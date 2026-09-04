@@ -43,6 +43,13 @@ it removes the only values file, the upgrade uses the chart's built-in defaults
 without recreating that persistent file. In all other cases, an empty unified
 values directory receives `terminal-values.yaml` from the chart.
 
+## Helm Health Tests
+
+`helm test terminal -n terminal-system` checks each runtime through its
+cluster-internal health endpoint: frontend and tty-bridge use `/healthz`, while
+the controller uses `/readyz` on its internal health Service at port `8081`.
+The test does not expose a public Ingress health route or enable metrics.
+
 ## HTTP and Certificates
 
 The frontend chart supports both HTTP and HTTPS. `disableHttps`, domain, ports,
