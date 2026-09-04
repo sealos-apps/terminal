@@ -38,7 +38,7 @@ spec:
           command:
             - /manager
           args:
-            - --health-probe-bind-address=:8081
+            - --health-probe-bind-address=:{{ .Values.controller.service.health.port }}
             - --metrics-bind-address=127.0.0.1:8080
             - --leader-elect
             - --config-file-path=/config.yaml
@@ -52,6 +52,10 @@ spec:
               value: {{ .Values.platform.tlsRejectUnauthorized | quote }}
           image: "{{ .Values.controller.image }}"
           imagePullPolicy: {{ .Values.controller.imagePullPolicy }}
+          ports:
+            - name: health
+              containerPort: {{ .Values.controller.service.health.port }}
+              protocol: TCP
           startupProbe:
             {{- toYaml .Values.controller.startupProbe | nindent 12 }}
           livenessProbe:

@@ -47,7 +47,8 @@ values directory receives `terminal-values.yaml` from the chart.
 
 `helm test terminal -n terminal-system` checks each runtime through its
 cluster-internal health endpoint: frontend and tty-bridge use `/healthz`, while
-the controller uses `/readyz` on its internal health Service at port `8081`.
+the controller uses `/readyz` on its internal health Service at
+`controller.service.health.port` (default `8081`).
 The test does not expose a public Ingress health route or enable metrics.
 
 ## HTTP and Certificates

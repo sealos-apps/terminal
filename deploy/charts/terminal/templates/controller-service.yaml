@@ -11,6 +11,6 @@ spec:
   - name: http
     port: {{ .Values.controller.service.health.port }}
     protocol: TCP
-    targetPort: {{ .Values.controller.service.health.port }}
+    targetPort: health
   selector:
     control-plane: controller-manager
