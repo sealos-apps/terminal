@@ -9,8 +9,9 @@ The public runtime image names are:
 - `ghcr.io/sealos-apps/terminal/terminal-controller`
 - `ghcr.io/sealos-apps/terminal/terminal-cluster`
 
-Production publishing targets are `linux/amd64` and `linux/arm64`. The amd64
-jobs use the native `ubuntu-24.04` runner. Main pushes use `sha-<7-char-sha>`
+Production publishing targets are `linux/amd64` and `linux/arm64`. All workflow
+jobs run on Namespace runners: `namespace-profile-sealos-apps-amd64` and
+`namespace-profile-sealos-apps-arm64`. Main pushes use `sha-<7-char-sha>`
 image tags. Version tags use their `v*` tag, and only version tags update
 `latest`. Automatic and manual publishing always publish both architectures.
 
@@ -84,9 +85,16 @@ On a publishing workflow run, the unified Terminal Sealos image is exported as
 a versioned `.tar.gz` file with an adjacent `.md5` file. The archive version is
 `${GITHUB_REF_NAME}-${SHORT_SHA}`, where `SHORT_SHA` is the first seven
 characters of `GITHUB_SHA`. The `/` character is replaced with `-` in archive
-filenames. GitHub
-Artifacts only pass the files between workflow jobs; OSS is the distribution
-source for offline cluster packages.
+filenames. The image is built, pushed, and exported with Docker because
+`sealos build` is not used on Namespace runners; `sealos registry save` still
+prepares the bundled `registry` directory. Namespace artifact actions only pass
+the files between workflow jobs; OSS is the distribution source for offline
+cluster packages.
+
+Before packaging, the cluster image jobs write the build identity to the chart
+`appVersion`: the full tag on tag runs and the full commit SHA otherwise. The
+committed `appVersion: "latest"` only applies to charts rendered directly from
+the repository.
 
 The repository variable `OSS_BUCKET` must contain the bucket and Terminal
 artifact root, for example:
@@ -128,4 +136,4 @@ instead of producing a green run without packages.
 
 Publishing fails when a required architecture build or archive is missing
 instead of producing a partial release. Runtime and cluster images are built on
-native amd64 and arm64 runners.
+native amd64 and arm64 Namespace runners.
