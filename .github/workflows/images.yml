@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -92,7 +92,7 @@ jobs:
           fi
 
   tty-bridge:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     defaults:
       run:
         working-directory: tty-bridge
@@ -107,7 +107,7 @@ jobs:
       - run: pnpm check
 
   release-metadata:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     outputs:
       image_tag: ${{ steps.metadata.outputs.image_tag }}
       is_release: ${{ steps.metadata.outputs.is_release }}
@@ -152,7 +152,7 @@ jobs:
 
   runtime_images_amd64:
     if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - verify
       - tty-bridge
@@ -209,7 +209,7 @@ jobs:
 
   runtime_images_arm64:
     if: github.event_name == 'push' || inputs.publish_images == true || inputs.upload_oss == true
-    runs-on: ubuntu-24.04-arm
+    runs-on: namespace-profile-sealos-apps-arm64
     needs:
       - verify
       - tty-bridge
@@ -265,7 +265,7 @@ jobs:
           docker push "${RUNTIME_IMAGE}"
 
   runtime-release:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - runtime_images_amd64
       - runtime_images_arm64
@@ -291,23 +291,23 @@ jobs:
           IS_RELEASE: ${{ needs.release-metadata.outputs.is_release }}
         run: |
           set -euo pipefail
-          for image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}" "${TTY_BRIDGE_IMAGE}"; do
+          for runtime_image in "${FRONTEND_IMAGE}" "${CONTROLLER_IMAGE}" "${TTY_BRIDGE_IMAGE}"; do
             sources=(
-              "${image}:${IMAGE_TAG}-amd64"
-              "${image}:${IMAGE_TAG}-arm64"
+              "${runtime_image}:${IMAGE_TAG}-amd64"
+              "${runtime_image}:${IMAGE_TAG}-arm64"
             )
-            docker manifest create "${image}:${IMAGE_TAG}" "${sources[@]}"
-            docker manifest push "${image}:${IMAGE_TAG}"
-            docker manifest inspect "${image}:${IMAGE_TAG}"
+            docker manifest create "${runtime_image}:${IMAGE_TAG}" "${sources[@]}"
+            docker manifest push "${runtime_image}:${IMAGE_TAG}"
+            docker manifest inspect "${runtime_image}:${IMAGE_TAG}"
             if [[ "${IS_RELEASE}" == "true" ]]; then
-              docker manifest create "${image}:latest" "${sources[@]}"
-              docker manifest push "${image}:latest"
-              docker manifest inspect "${image}:latest"
+              docker manifest create "${runtime_image}:latest" "${sources[@]}"
+              docker manifest push "${runtime_image}:latest"
+              docker manifest inspect "${runtime_image}:latest"
             fi
           done
 
   scan-runtime-images:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - runtime-release
       - release-metadata
@@ -361,7 +361,7 @@ jobs:
           category: trivy-tty-bridge
 
   cluster_images_amd64:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - runtime-release
       - release-metadata
@@ -388,6 +388,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login Sealos to GHCR
         run: sudo sealos login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+      - name: Stamp chart appVersion
+        working-directory: deploy
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            APP_VERSION="${GITHUB_REF_NAME}"
+            sed -i -E "s;^appVersion: .*;appVersion: \"${APP_VERSION}\";" charts/terminal/Chart.yaml
+          else
+            APP_VERSION="${GITHUB_SHA}"
+            sed -i -E "s;^appVersion: .*;appVersion: \"${APP_VERSION}\";" charts/terminal/Chart.yaml
+          fi
+          grep -Fqx "appVersion: \"${APP_VERSION}\"" charts/terminal/Chart.yaml
       - name: Build and archive cluster image
         working-directory: deploy
         env:
@@ -414,13 +426,12 @@ jobs:
           grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
-          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "${PLATFORM}" -f Kubefile .
-          sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
-          sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
-          gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
+          docker build --platform "${PLATFORM}" -t "${CLUSTER_RUNTIME_IMAGE}" -f Kubefile .
+          docker push "${CLUSTER_RUNTIME_IMAGE}"
+          docker save "${CLUSTER_RUNTIME_IMAGE}" | gzip > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz"
           md5sum "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
           ls -lh "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
-      - uses: actions/upload-artifact@v4
+      - uses: namespace-actions/upload-artifact@v1
         with:
           name: cluster-bundle-${{ needs.release-metadata.outputs.archive_version }}-amd64
           path: |
@@ -430,7 +441,7 @@ jobs:
           retention-days: 7
 
   cluster_images_arm64:
-    runs-on: ubuntu-24.04-arm
+    runs-on: namespace-profile-sealos-apps-arm64
     needs:
       - runtime-release
       - release-metadata
@@ -457,6 +468,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login Sealos to GHCR
         run: sudo sealos login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+      - name: Stamp chart appVersion
+        working-directory: deploy
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            APP_VERSION="${GITHUB_REF_NAME}"
+            sed -i -E "s;^appVersion: .*;appVersion: \"${APP_VERSION}\";" charts/terminal/Chart.yaml
+          else
+            APP_VERSION="${GITHUB_SHA}"
+            sed -i -E "s;^appVersion: .*;appVersion: \"${APP_VERSION}\";" charts/terminal/Chart.yaml
+          fi
+          grep -Fqx "appVersion: \"${APP_VERSION}\"" charts/terminal/Chart.yaml
       - name: Build and archive cluster image
         working-directory: deploy
         env:
@@ -483,13 +506,12 @@ jobs:
           grep -Fqx "  image: ${TTY_BRIDGE_RUNTIME_IMAGE}" <(sed -n '/^ttyBridge:/,/^controller:/{/^  image:/p;}' "${chart_values}")
           rm -rf registry
           sudo sealos registry save --registry-dir registry --arch "${ARCH}" .
-          sudo sealos build -t "${CLUSTER_RUNTIME_IMAGE}" --platform "${PLATFORM}" -f Kubefile .
-          sudo sealos push "${CLUSTER_RUNTIME_IMAGE}"
-          sudo sealos save -o "${RUNNER_TEMP}/${TAR_BASENAME}.tar" "${CLUSTER_RUNTIME_IMAGE}"
-          gzip -f "${RUNNER_TEMP}/${TAR_BASENAME}.tar"
+          docker build --platform "${PLATFORM}" -t "${CLUSTER_RUNTIME_IMAGE}" -f Kubefile .
+          docker push "${CLUSTER_RUNTIME_IMAGE}"
+          docker save "${CLUSTER_RUNTIME_IMAGE}" | gzip > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz"
           md5sum "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" > "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
           ls -lh "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz" "${RUNNER_TEMP}/${TAR_BASENAME}.tar.gz.md5"
-      - uses: actions/upload-artifact@v4
+      - uses: namespace-actions/upload-artifact@v1
         with:
           name: cluster-bundle-${{ needs.release-metadata.outputs.archive_version }}-arm64
           path: |
@@ -499,7 +521,7 @@ jobs:
           retention-days: 7
 
   cluster-release:
-    runs-on: ubuntu-24.04
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - cluster_images_amd64
       - cluster_images_arm64
@@ -539,7 +561,7 @@ jobs:
           fi
 
   oss-upload:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     needs:
       - cluster_images_amd64
       - cluster_images_arm64
@@ -551,7 +573,7 @@ jobs:
       needs.cluster_images_arm64.result == 'success' &&
       needs.release-metadata.result == 'success'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: namespace-actions/download-artifact@v2
         with:
           pattern: cluster-bundle-*
           path: cluster-bundles

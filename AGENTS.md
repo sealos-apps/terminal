@@ -72,6 +72,9 @@ render.
   namespaces described in `docs/runbook.md`.
 - Build and publish `linux/amd64` and `linux/arm64` for all production images
   and archives. Manual publishing uses the same two-architecture contract.
+- Workflows run on Namespace runners (`namespace-profile-sealos-apps-amd64` and
+  `namespace-profile-sealos-apps-arm64`) with `namespace-actions` artifact
+  actions; do not use GitHub-hosted runners.
 - CI cluster archives use repository variable `OSS_BUCKET` and secrets
   `OSS_ENDPOINT`, `OSS_ACCESS_KEY_ID`, and `OSS_ACCESS_KEY_SECRET`; missing OSS
   configuration must fail the publishing job.

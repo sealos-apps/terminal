@@ -16,7 +16,7 @@ env:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     defaults:
       run:
         working-directory: frontend
@@ -38,7 +38,7 @@ jobs:
       - run: pnpm build
 
   controller:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     defaults:
       run:
         working-directory: controller
@@ -51,7 +51,7 @@ jobs:
       - run: go build ./...
 
   tty-bridge:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     defaults:
       run:
         working-directory: tty-bridge
@@ -67,7 +67,7 @@ jobs:
       - run: pnpm check
 
   helm:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -157,7 +157,7 @@ jobs:
           grep -Fq 'ghcr.io/sealos-apps/terminal/terminal-controller:ci-test' /tmp/terminal-runtime-images.yaml
 
   sealos-audit:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-sealos-apps-amd64
     steps:
       - uses: actions/checkout@v4
       - name: Fetch Sealos app audit skill
