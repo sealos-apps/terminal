@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,7 +75,7 @@ const (
 type TerminalReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
-	recorder  record.EventRecorder
+	recorder  events.EventRecorder
 	Config    *rest.Config
 	CtrConfig *Config
 }
@@ -148,25 +148,27 @@ func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	var hostname string
 	if err := r.syncDeployment(ctx, terminal, &hostname, recLabels); err != nil {
 		logger.Error(err, "create deployment failed")
-		r.recorder.Eventf(terminal, corev1.EventTypeWarning, "Create deployment failed", "%v", err)
+		r.recorder.Eventf(terminal, nil, corev1.EventTypeWarning, "Create deployment failed", "Create deployment failed", "%v", err)
 		return ctrl.Result{}, err
 	}
 
 	if err := r.syncService(ctx, terminal, recLabels); err != nil {
 		logger.Error(err, "create service failed")
-		r.recorder.Eventf(terminal, corev1.EventTypeWarning, "Create service failed", "%v", err)
+		r.recorder.Eventf(terminal, nil, corev1.EventTypeWarning, "Create service failed", "Create service failed", "%v", err)
 		return ctrl.Result{}, err
 	}
 
 	if err := r.syncIngress(ctx, terminal, hostname, recLabels); err != nil {
 		logger.Error(err, "create ingress failed")
-		r.recorder.Eventf(terminal, corev1.EventTypeWarning, "Create ingress failed", "%v", err)
+		r.recorder.Eventf(terminal, nil, corev1.EventTypeWarning, "Create ingress failed", "Create ingress failed", "%v", err)
 		return ctrl.Result{}, err
 	}
 
 	r.recorder.Eventf(
 		terminal,
+		nil,
 		corev1.EventTypeNormal,
+		"Created",
 		"Created",
 		"create terminal success: %v",
 		terminal.Name,
@@ -451,7 +453,7 @@ func (r *TerminalReconciler) generateSecretHeader() string {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.recorder = mgr.GetEventRecorderFor("sealos-terminal-controller")
+	r.recorder = mgr.GetEventRecorder("sealos-terminal-controller")
 	r.Config = mgr.GetConfig()
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&terminalv1.Terminal{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
