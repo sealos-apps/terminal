@@ -86,6 +86,3 @@ type TerminalList struct {
 	Items           []Terminal `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&Terminal{}, &TerminalList{})
-}
