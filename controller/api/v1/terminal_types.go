@@ -85,4 +85,3 @@ type TerminalList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Terminal `json:"items"`
 }
-
